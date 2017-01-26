@@ -669,32 +669,16 @@ Func PostProcessing($aOPTIONS,$aPreProc)
 	Local $aTargetData[1][3] ;Match|Confidence|OriginalCellData
 	$aTargetData[0][0]="0"
 
-	Local $aRegexPattern[21]
+	Local $aRegexPattern[5]
 	;Autoit's Regex has it's limits
-	;American Express start with 34 or 37 and have 15 digits
-	$aRegexPattern[1]="[^0-9]3[^0-9a-zA-Z]{0,1}[47][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9]\Z"
-	$aRegexPattern[2]="[^0-9]3[^0-9a-zA-Z]{0,1}[47][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9][^0-9]"
-	$aRegexPattern[3]="\A3[^0-9a-zA-Z]{0,1}[47][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9]\Z"
-	$aRegexPattern[4]="\A3[^0-9a-zA-Z]{0,1}[47][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9][^0-9]"
+	;American Express starts with 34 or 37 and has 15 digits
+	$aRegexPattern[1]="(\D?|^)3\D{0,4}(4|7)(\D{0,4}\d){13}(\D?|$)"
 	;Visa All cards start with 4 length is *NOT* 13-16 digits. 16 only.
-	$aRegexPattern[5]="[^0-9]4[^0-9a-zA-Z]{0,1}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9]\Z"
-	$aRegexPattern[6]="[^0-9]4[^0-9a-zA-Z]{0,1}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9][^0-9]"
-	$aRegexPattern[7]="\A4[^0-9a-zA-Z]{0,1}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9]\Z"
-	$aRegexPattern[8]="\A4[^0-9a-zA-Z]{0,1}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9][^0-9]"
+	$aRegexPattern[2]="(\D?|^)4(\D{0,4}\d){15}(\D?|$)"
 	;Discover begin with 6011 or 65. All have 16 digits.
-	$aRegexPattern[9]="[^0-9]6[^0-9a-zA-Z]{0,1}0[^0-9a-zA-Z]{0,2}1[^0-9a-zA-Z]{0,2}1[^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9]\Z"
-	$aRegexPattern[10]="[^0-9]6[^0-9a-zA-Z]{0,1}0[^0-9a-zA-Z]{0,2}1[^0-9a-zA-Z]{0,2}1[^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9][^0-9]"
-	$aRegexPattern[11]="\A6[^0-9a-zA-Z]{0,1}0[^0-9a-zA-Z]{0,2}1[^0-9a-zA-Z]{0,2}1[^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9]\Z"
-	$aRegexPattern[12]="\A6[^0-9a-zA-Z]{0,1}0[^0-9a-zA-Z]{0,2}1[^0-9a-zA-Z]{0,2}1[^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9][^0-9]"
-	$aRegexPattern[13]="[^0-9]6[^0-9a-zA-Z]{0,1}5[^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9][^0-9a-zA-Z]{0,2}[0-9]\Z"
-	$aRegexPattern[14]="[^0-9]6[^0-9a-zA-Z]{0,1}5[^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9]"
-	$aRegexPattern[15]="\A6[^0-9a-zA-Z]{0,1}5[^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9]\Z"
-	$aRegexPattern[16]="\A6[^0-9a-zA-Z]{0,1}5[^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9][^0-9]"
+	$aRegexPattern[3]="(\D?|^)6\D{0,4}(5(\D{0,4}\d){14}(\D?|$)|0\D{0,4}1\D{0,4}1(\D{0,4}\d){12}(\D?|$))"
 	;MasterCard  start with 50 through 55. 16 digits
-	$aRegexPattern[17]="[^0-9]5[^0-9a-zA-Z]{0,1}[0-5][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9]\Z"
-	$aRegexPattern[18]="[^0-9]5[^0-9a-zA-Z]{0,1}[0-5][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9][^0-9]"
-	$aRegexPattern[19]="\A5[^0-9a-zA-Z]{0,1}[0-5][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9]\Z"
-	$aRegexPattern[20]="\A5[^0-9a-zA-Z]{0,1}[0-5][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9][^0-9]"
+	$aRegexPattern[4]="(\D?|^)5\D{0,4}(0-5)(\D{0,4}\d){14}(\D?|$)"
 
 	For $a=1 To UBound($aPreProc)-1
 		$aPreProc[$a][1]=StringReplace($aPreProc[$a][1],@CR,"")
@@ -717,79 +701,91 @@ Func PostProcessing($aOPTIONS,$aPreProc)
 ;~ 						$aTargetData[1][3] ;Match|Confidence|OriginalCellData
 						$aTargetData[0][0]+=1
 						_ArrayAdd($aTargetData,$NumericMatch&"|50|"&$aPreProc[$a][1])
-						;Check for the total number of delimiters
+
+						;Remove extra characters resulting from not prepended or followed by a number check
 						If StringIsInt(StringRight($aRegExResults[$c],1))=0 Then StringTrimRight($aRegExResults[$c],1)
 						If StringIsInt(StringLeft($aRegExResults[$c],1))=0 Then StringTrimLeft($aRegExResults[$c],1)
 
-						;Find the total number of spaces used by delimiters
-						Local $Delimiters=StringRegExpReplace($aRegExResults[$c],"\d","")
-						$Delimiters=StringStripWS($Delimiters,8)
+						;Score Finding
+						;Delimiters
+						$aTargetData[UBound($aTargetData)-1][1]=ConfidenceDelimiters($aTargetData[UBound($aTargetData)-1][1],$aRegExResults[$c])
+						;KeyWords - Cell data and column / table names
+						$aTargetData[UBound($aTargetData)-1][1]=ConfidenceKeyWords($aTargetData[UBound($aTargetData)-1][1])
 
-						;Find the number of unique delimiter types "-/+" = 3 for example
-						Local $DelimTypeCount=GetDelimiterTypeCount($Delimiters)
 
-						Switch StringLen($Delimiters)
-							Case 0
-								$aTargetData[UBound($aTargetData)-1][1]+=40
-							Case 1
-								$aTargetData[UBound($aTargetData)-1][1]+=40
-							Case 2
-								$aTargetData[UBound($aTargetData)-1][1]+=30
-							Case 3
-								Switch $DelimTypeCount
-									Case 1
-										$aTargetData[UBound($aTargetData)-1][1]+=25
-									Case 2
-										$aTargetData[UBound($aTargetData)-1][1]+=20
-									Case 3
-										$aTargetData[UBound($aTargetData)-1][1]+=15
-								EndSwitch
-							Case 4
-								Switch $DelimTypeCount
-									Case 1
-										$aTargetData[UBound($aTargetData)-1][1]+=40
-									Case 2
-										$aTargetData[UBound($aTargetData)-1][1]+=20
-									Case 3
-										$aTargetData[UBound($aTargetData)-1][1]+=15
-									Case 4
-										$aTargetData[UBound($aTargetData)-1][1]-=10
-								EndSwitch
-							Case 5
-								Switch $DelimTypeCount
-									Case 1
-										$aTargetData[UBound($aTargetData)-1][1]+=40
-									Case 2
-										$aTargetData[UBound($aTargetData)-1][1]+=20
-									Case 3
-										$aTargetData[UBound($aTargetData)-1][1]+=15
-									Case 4
-										$aTargetData[UBound($aTargetData)-1][1]-=10
-									Case 5
-										$aTargetData[UBound($aTargetData)-1][1]-=30
-								EndSwitch
-							Case Else
-								Switch $DelimTypeCount
-									Case 1
-										$aTargetData[UBound($aTargetData)-1][1]+=15
-									Case 2
-										$aTargetData[UBound($aTargetData)-1][1]+=10
-									Case 3
-										$aTargetData[UBound($aTargetData)-1][1]-=30
-									Case 4
-										$aTargetData[UBound($aTargetData)-1][1]-=35
-									Case 5
-										$aTargetData[UBound($aTargetData)-1][1]-=40
-									Case Else
-										$aTargetData[UBound($aTargetData)-1][1]-=50
-								EndSwitch
-						EndSwitch
 					EndIf
 				Next
 			EndIf
 		Next
 	Next
 	Return $aTargetData
+EndFunc
+
+;#######################################################################
+;		ConfidenceMiscTests - Adjust score based on additional patterns
+;-----------------------------------------------------------------------
+Func ConfidenceMiscTests($Score)
+	;Cell Data
+	;#.match = reduce score
+	;match.### increase score
+	;match.(#|##).(#|##) increase
+	Return $Score
+EndFunc
+
+;#######################################################################
+;		ConfidenceKeyWords - Adjust score based on Cell data and column / table names
+;-----------------------------------------------------------------------
+Func ConfidenceKeyWords($Score)
+	;Cell Data
+	;+ CVV VISA AMEX
+	;- AAA
+	;Table names
+	;
+	;Column Names
+	;phone = reduce score
+	;aaa = reduce score
+	Return $Score
+EndFunc
+
+;#######################################################################
+;		ConfidenceDelimiters - Adjust score based on number and type of delimiters
+;-----------------------------------------------------------------------
+Func ConfidenceDelimiters($Score,$Match)
+	;Find the total number of spaces used by delimiters
+	Local $Delimiters=StringRegExpReplace($Match,"\d","")
+	$Delimiters=StringStripWS($Delimiters,8)
+
+	;Find the number of unique delimiter types "-/+" = 3 for example
+	Local $DelimTypeCount=GetDelimiterTypeCount($Delimiters)
+
+	;Adjust score based on number and type of delimiters
+	If StringLen($Delimiters) <= 4 Then
+		Switch $DelimTypeCount
+			Case 0
+				$Score+=45
+			Case 1
+				$Score+=45
+			Case 2
+				$Score+=30
+			Case 3
+				$Score+=25
+			Case Else
+				$Score+=-10
+		EndSwitch
+	Else
+		Switch $DelimTypeCount
+			Case 1
+				$Score+=40
+			Case 2
+				$Score+=20
+			Case 3
+				$Score+=-10
+			Case Else
+				$Score+=-20
+		EndSwitch
+	EndIf
+
+	Return $Score
 EndFunc
 
 ;#######################################################################
@@ -1132,13 +1128,15 @@ EndFunc
 ;		GetDelimiterTypeCount - identify the number of unique delimiters
 ;-----------------------------------------------------------------------
 Func GetDelimiterTypeCount($Delimiters)
-	Local $aDelimiters[StringLen($Delimiters)]
-	For $a=0 To StringLen($Delimiters)-1
-		$aDelimiters[$a]=StringMid($Delimiters,$a,1)
-	Next
-	$aUniqueDelimiters=_ArrayUnique(StringLower($aDelimiters))
-	If Not @error Then
-		Return $aUniqueDelimiters[0]
+	If StringLen($Delimiters) >= 0 Then
+		Local $aDelimiters[StringLen($Delimiters)]
+		For $a=0 To StringLen($Delimiters)-1
+			$aDelimiters[$a]=StringMid($Delimiters,$a,1)
+		Next
+		$aUniqueDelimiters=_ArrayUnique(StringLower($aDelimiters))
+		If Not @error Then
+			Return $aUniqueDelimiters[0]
+		EndIf
 	EndIf
 	Return 0
 EndFunc
