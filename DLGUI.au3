@@ -7,7 +7,7 @@
 #AutoIt3Wrapper_UseUpx=y
 #AutoIt3Wrapper_Compile_Both=y
 #AutoIt3Wrapper_Res_Description=DB Data locator
-#AutoIt3Wrapper_Res_Fileversion=0.1.0.51
+#AutoIt3Wrapper_Res_Fileversion=0.1.0.54
 #AutoIt3Wrapper_Res_Fileversion_AutoIncrement=y
 #AutoIt3Wrapper_Res_HiDpi=y
 #AutoIt3Wrapper_Run_Au3Stripper=y
@@ -545,12 +545,28 @@ Func FindData($oADODB,$aOPTIONS)
 						EndIf
 
 						;Pull remaining data over the wire for post-processing
-						For $e=1 To $aTables[$b][1] Step 500 ;Loop through all records in #TempCC
-							Local $sQuery="SELECT * FROM #TempCC WHERE (RowNumber >="&$e&" AND RowNumber <="&$e+499&") ORDER BY RowNumber;"
+						Local $PullCount=0
+						Switch $aColumn[2] ;Cell length
+							Case 1 To 20
+								$PullCount=3000
+							Case 21 To 50
+								$PullCount=2000
+							Case 51 To 100
+								$PullCount=1500
+							Case 101 To 500
+								$PullCount=500
+							Case 501 To 1000
+								$PullCount=250
+							Case Else
+								$PullCount=100
+						EndSwitch
+
+						For $e=1 To $aTables[$b][1] Step $PullCount ;Loop through all records in #TempCC
+							Local $sQuery="SELECT * FROM #TempCC WHERE (RowNumber >="&$e&" AND RowNumber <="&$e+$PullCount-1&") ORDER BY RowNumber;"
 							Local $aPreProc[1][1],$iRows=0,$iColumns=0
 							_SQL_GetData2D($oADODB,$sQuery,$aPreProc,$iRows,$iColumns)
 							If $iRows>1 And $iColumns>1 Then
-								Cout("Post-Processing: "&$aDataBases[$a]&"|"&$aTables[$b][0]&"|"&$aColumns[$c][0]&"| rows "&$e&"-"&$e+499&@CRLF)
+								Cout("Post-Processing: "&$aDataBases[$a]&"|"&$aTables[$b][0]&"|"&$aColumns[$c][0]&"| rows "&$e&"-"&$e+$PullCount-1&@CRLF)
 								Local $aTempTargetData=PostProcessing($aOPTIONS,$aPreProc)
 								If $aTempTargetData[0][0]<>"0" Then
 									For $g=1 To UBound($aTempTargetData)-1
@@ -672,13 +688,13 @@ Func PostProcessing($aOPTIONS,$aPreProc)
 	Local $aRegexPattern[5]
 	;Autoit's Regex has it's limits
 	;American Express starts with 34 or 37 and has 15 digits
-	$aRegexPattern[1]="(\D?|^)3\D{0,4}(4|7)(\D{0,4}\d){13}(\D?|$)"
+	$aRegexPattern[1]="(?<![0-9])3\D{0,4}(4|7)(\D{0,4}\d){13}(?![0-9])"
 	;Visa All cards start with 4 length is *NOT* 13-16 digits. 16 only.
-	$aRegexPattern[2]="(\D?|^)4(\D{0,4}\d){15}(\D?|$)"
+	$aRegexPattern[2]="(?<![0-9])4(\D{0,4}\d){15}(?![0-9])"
 	;Discover begin with 6011 or 65. All have 16 digits.
-	$aRegexPattern[3]="(\D?|^)6\D{0,4}(5(\D{0,4}\d){14}(\D?|$)|0\D{0,4}1\D{0,4}1(\D{0,4}\d){12}(\D?|$))"
+	$aRegexPattern[3]="(?<![0-9])6\D{0,4}(5(\D{0,4}\d){14}(\D?|$)|0\D{0,4}1\D{0,4}1(\D{0,4}\d){12}(?![0-9]))"
 	;MasterCard  start with 50 through 55. 16 digits
-	$aRegexPattern[4]="(\D?|^)5\D{0,4}(0-5)(\D{0,4}\d){14}(\D?|$)"
+	$aRegexPattern[4]="(?<![0-9])5\D{0,4}(0-5)(\D{0,4}\d){14}(?![0-9])"
 
 	For $a=1 To UBound($aPreProc)-1
 		$aPreProc[$a][1]=StringReplace($aPreProc[$a][1],@CR,"")
@@ -692,26 +708,26 @@ Func PostProcessing($aOPTIONS,$aPreProc)
 		$aPreProc[$a][1]=StringReplace($aPreProc[$a][1],"&#62;",">")
 		For $b = 1 To UBound($aRegexPattern)-1
 			;Find all possable matches
-			Local $aRegexResults=StringRegExp($aPreProc[$a][1],$aRegexPattern[$b],1)
-			If Not @error Then
+			Local $aRegexResults=StringRegExp($aPreProc[$a][1],$aRegexPattern[$b],4)
+			If @error=0 Then
 				;Cycle through all maches from the specific cell
 				For $c=0 To UBound($aRegExResults)-1
-					Local $NumericMatch=StringRegExpReplace($aRegExResults[$c],"\D","")
+					Local $aMatch=$aRegExResults[$c]
+					Local $NumericMatch=StringRegExpReplace($aMatch[0],"\D","")
 					If _LuhnCheck($NumericMatch)="True" Then
 ;~ 						$aTargetData[1][3] ;Match|Confidence|OriginalCellData
 						$aTargetData[0][0]+=1
 						_ArrayAdd($aTargetData,$NumericMatch&"|50|"&$aPreProc[$a][1])
 
 						;Remove extra characters resulting from not prepended or followed by a number check
-						If StringIsInt(StringRight($aRegExResults[$c],1))=0 Then StringTrimRight($aRegExResults[$c],1)
-						If StringIsInt(StringLeft($aRegExResults[$c],1))=0 Then StringTrimLeft($aRegExResults[$c],1)
+						If StringIsInt(StringRight($aMatch[0],1))=0 Then StringTrimRight($aMatch[0],1)
+						If StringIsInt(StringLeft($aMatch[0],1))=0 Then StringTrimLeft($aMatch[0],1)
 
 						;Score Finding
 						;Delimiters
-						$aTargetData[UBound($aTargetData)-1][1]=ConfidenceDelimiters($aTargetData[UBound($aTargetData)-1][1],$aRegExResults[$c])
+						$aTargetData[UBound($aTargetData)-1][1]=ConfidenceDelimiters($aTargetData[UBound($aTargetData)-1][1],$aMatch[0])
 						;KeyWords - Cell data and column / table names
 						$aTargetData[UBound($aTargetData)-1][1]=ConfidenceKeyWords($aTargetData[UBound($aTargetData)-1][1])
-
 
 					EndIf
 				Next
@@ -719,6 +735,17 @@ Func PostProcessing($aOPTIONS,$aPreProc)
 		Next
 	Next
 	Return $aTargetData
+EndFunc
+
+;#######################################################################
+;		ConfidenceBINCheck - Adjust score based known issuer ID in card number
+;-----------------------------------------------------------------------
+Func ConfidenceBINCheck($Score)
+	;Cell Data
+	;#.match = reduce score
+	;match.### increase score
+	;match.(#|##).(#|##) increase
+	Return $Score
 EndFunc
 
 ;#######################################################################
@@ -953,7 +980,7 @@ EndFunc
 ;		_SQL_Execute -
 ;-----------------------------------------------------------------------
 Func _SQL_Execute($oADODB=-1,$vQuery="")
-;~ 	FileWriteLine("sql.log",$vQuery)
+	FileWriteLine("sql.log",$vQuery)
     $SQLErr=""
     If $oADODB=-1 Then $oADODB=$SQL_LastConnection
     Local $hQuery=$oADODB.Execute($vQuery)

@@ -7,7 +7,7 @@
 #AutoIt3Wrapper_UseUpx=y
 #AutoIt3Wrapper_Compile_Both=y
 #AutoIt3Wrapper_Res_Description=DB Data locator
-#AutoIt3Wrapper_Res_Fileversion=0.1.0.50
+#AutoIt3Wrapper_Res_Fileversion=0.1.0.53
 #AutoIt3Wrapper_Res_Fileversion_AutoIncrement=y
 #AutoIt3Wrapper_Res_HiDpi=y
 #AutoIt3Wrapper_Run_Au3Stripper=y
@@ -21792,12 +21792,27 @@ Cout("Unable to create temp table"&@CRLF)
 MsgBox(0,"SQL Error","Unable to create temp table",120)
 return
 EndIf
-For $e=1 To $aTables[$b][1] Step 500
-Local $sQuery="SELECT * FROM #TempCC WHERE (RowNumber >="&$e&" AND RowNumber <="&$e+499&") ORDER BY RowNumber;"
+Local $PullCount=0
+Switch $aColumn[2]
+Case 1 To 20
+$PullCount=3000
+Case 21 To 50
+$PullCount=2000
+Case 51 To 100
+$PullCount=1500
+Case 101 To 500
+$PullCount=500
+Case 501 To 1000
+$PullCount=250
+Case Else
+$PullCount=100
+EndSwitch
+For $e=1 To $aTables[$b][1] Step $PullCount
+Local $sQuery="SELECT * FROM #TempCC WHERE (RowNumber >="&$e&" AND RowNumber <="&$e+$PullCount-1&") ORDER BY RowNumber;"
 Local $aPreProc[1][1],$iRows=0,$iColumns=0
 _SQL_GetData2D($oADODB,$sQuery,$aPreProc,$iRows,$iColumns)
 If $iRows>1 And $iColumns>1 Then
-Cout("Post-Processing: "&$aDataBases[$a]&"|"&$aTables[$b][0]&"|"&$aColumns[$c][0]&"| rows "&$e&"-"&$e+499&@CRLF)
+Cout("Post-Processing: "&$aDataBases[$a]&"|"&$aTables[$b][0]&"|"&$aColumns[$c][0]&"| rows "&$e&"-"&$e+$PullCount-1&@CRLF)
 Local $aTempTargetData=PostProcessing($aOPTIONS,$aPreProc)
 If $aTempTargetData[0][0]<>"0" Then
 For $g=1 To UBound($aTempTargetData)-1
@@ -21898,27 +21913,11 @@ EndFunc
 Func PostProcessing($aOPTIONS,$aPreProc)
 Local $aTargetData[1][3]
 $aTargetData[0][0]="0"
-Local $aRegexPattern[21]
-$aRegexPattern[1]="[^0-9]3[^0-9a-zA-Z]{0,1}[47][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9]\Z"
-$aRegexPattern[2]="[^0-9]3[^0-9a-zA-Z]{0,1}[47][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9][^0-9]"
-$aRegexPattern[3]="\A3[^0-9a-zA-Z]{0,1}[47][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9]\Z"
-$aRegexPattern[4]="\A3[^0-9a-zA-Z]{0,1}[47][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9][^0-9]"
-$aRegexPattern[5]="[^0-9]4[^0-9a-zA-Z]{0,1}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9]\Z"
-$aRegexPattern[6]="[^0-9]4[^0-9a-zA-Z]{0,1}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9][^0-9]"
-$aRegexPattern[7]="\A4[^0-9a-zA-Z]{0,1}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9]\Z"
-$aRegexPattern[8]="\A4[^0-9a-zA-Z]{0,1}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9][^0-9]"
-$aRegexPattern[9]="[^0-9]6[^0-9a-zA-Z]{0,1}0[^0-9a-zA-Z]{0,2}1[^0-9a-zA-Z]{0,2}1[^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9]\Z"
-$aRegexPattern[10]="[^0-9]6[^0-9a-zA-Z]{0,1}0[^0-9a-zA-Z]{0,2}1[^0-9a-zA-Z]{0,2}1[^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9][^0-9]"
-$aRegexPattern[11]="\A6[^0-9a-zA-Z]{0,1}0[^0-9a-zA-Z]{0,2}1[^0-9a-zA-Z]{0,2}1[^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9]\Z"
-$aRegexPattern[12]="\A6[^0-9a-zA-Z]{0,1}0[^0-9a-zA-Z]{0,2}1[^0-9a-zA-Z]{0,2}1[^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9][^0-9]"
-$aRegexPattern[13]="[^0-9]6[^0-9a-zA-Z]{0,1}5[^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9][^0-9a-zA-Z]{0,2}[0-9]\Z"
-$aRegexPattern[14]="[^0-9]6[^0-9a-zA-Z]{0,1}5[^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9]"
-$aRegexPattern[15]="\A6[^0-9a-zA-Z]{0,1}5[^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9]\Z"
-$aRegexPattern[16]="\A6[^0-9a-zA-Z]{0,1}5[^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9][^0-9]"
-$aRegexPattern[17]="[^0-9]5[^0-9a-zA-Z]{0,1}[0-5][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9]\Z"
-$aRegexPattern[18]="[^0-9]5[^0-9a-zA-Z]{0,1}[0-5][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9][^0-9]"
-$aRegexPattern[19]="\A5[^0-9a-zA-Z]{0,1}[0-5][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9]\Z"
-$aRegexPattern[20]="\A5[^0-9a-zA-Z]{0,1}[0-5][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,2}[0-9][^0-9a-zA-Z]{0,1}[0-9][^0-9]"
+Local $aRegexPattern[5]
+$aRegexPattern[1]="(?<![0-9])3\D{0,4}(4|7)(\D{0,4}\d){13}(?![0-9])"
+$aRegexPattern[2]="(?<![0-9])4(\D{0,4}\d){15}(?![0-9])"
+$aRegexPattern[3]="(?<![0-9])6\D{0,4}(5(\D{0,4}\d){14}(\D?|$)|0\D{0,4}1\D{0,4}1(\D{0,4}\d){12}(?![0-9]))"
+$aRegexPattern[4]="(?<![0-9])5\D{0,4}(0-5)(\D{0,4}\d){14}(?![0-9])"
 For $a=1 To UBound($aPreProc)-1
 $aPreProc[$a][1]=StringReplace($aPreProc[$a][1],@CR,"")
 $aPreProc[$a][1]=StringReplace($aPreProc[$a][1],@LF,"")
@@ -21930,80 +21929,64 @@ $aPreProc[$a][1]=StringReplace($aPreProc[$a][1],"&#41;",")")
 $aPreProc[$a][1]=StringReplace($aPreProc[$a][1],"&#60;","<")
 $aPreProc[$a][1]=StringReplace($aPreProc[$a][1],"&#62;",">")
 For $b = 1 To UBound($aRegexPattern)-1
-Local $aRegexResults=StringRegExp($aPreProc[$a][1],$aRegexPattern[$b],1)
-If Not @error Then
+Local $aRegexResults=StringRegExp($aPreProc[$a][1],$aRegexPattern[$b],4)
+If @error=0 Then
 For $c=0 To UBound($aRegExResults)-1
-Local $NumericMatch=StringRegExpReplace($aRegExResults[$c],"\D","")
+Local $aMatch=$aRegExResults[$c]
+Local $NumericMatch=StringRegExpReplace($aMatch[0],"\D","")
 If _LuhnCheck($NumericMatch)="True" Then
 $aTargetData[0][0]+=1
 _ArrayAdd($aTargetData,$NumericMatch&"|50|"&$aPreProc[$a][1])
-If StringIsInt(StringRight($aRegExResults[$c],1))=0 Then StringTrimRight($aRegExResults[$c],1)
-If StringIsInt(StringLeft($aRegExResults[$c],1))=0 Then StringTrimLeft($aRegExResults[$c],1)
-Local $Delimiters=StringRegExpReplace($aRegExResults[$c],"\d","")
-$Delimiters=StringStripWS($Delimiters,8)
-Local $DelimTypeCount=GetDelimiterTypeCount($Delimiters)
-Switch StringLen($Delimiters)
-Case 0
-$aTargetData[UBound($aTargetData)-1][1]+=40
-Case 1
-$aTargetData[UBound($aTargetData)-1][1]+=40
-Case 2
-$aTargetData[UBound($aTargetData)-1][1]+=30
-Case 3
-Switch $DelimTypeCount
-Case 1
-$aTargetData[UBound($aTargetData)-1][1]+=25
-Case 2
-$aTargetData[UBound($aTargetData)-1][1]+=20
-Case 3
-$aTargetData[UBound($aTargetData)-1][1]+=15
-EndSwitch
-Case 4
-Switch $DelimTypeCount
-Case 1
-$aTargetData[UBound($aTargetData)-1][1]+=40
-Case 2
-$aTargetData[UBound($aTargetData)-1][1]+=20
-Case 3
-$aTargetData[UBound($aTargetData)-1][1]+=15
-Case 4
-$aTargetData[UBound($aTargetData)-1][1]-=10
-EndSwitch
-Case 5
-Switch $DelimTypeCount
-Case 1
-$aTargetData[UBound($aTargetData)-1][1]+=40
-Case 2
-$aTargetData[UBound($aTargetData)-1][1]+=20
-Case 3
-$aTargetData[UBound($aTargetData)-1][1]+=15
-Case 4
-$aTargetData[UBound($aTargetData)-1][1]-=10
-Case 5
-$aTargetData[UBound($aTargetData)-1][1]-=30
-EndSwitch
-Case Else
-Switch $DelimTypeCount
-Case 1
-$aTargetData[UBound($aTargetData)-1][1]+=15
-Case 2
-$aTargetData[UBound($aTargetData)-1][1]+=10
-Case 3
-$aTargetData[UBound($aTargetData)-1][1]-=30
-Case 4
-$aTargetData[UBound($aTargetData)-1][1]-=35
-Case 5
-$aTargetData[UBound($aTargetData)-1][1]-=40
-Case Else
-$aTargetData[UBound($aTargetData)-1][1]-=50
-EndSwitch
-EndSwitch
+If StringIsInt(StringRight($aMatch[0],1))=0 Then StringTrimRight($aMatch[0],1)
+If StringIsInt(StringLeft($aMatch[0],1))=0 Then StringTrimLeft($aMatch[0],1)
+$aTargetData[UBound($aTargetData)-1][1]=ConfidenceDelimiters($aTargetData[UBound($aTargetData)-1][1],$aMatch[0])
+$aTargetData[UBound($aTargetData)-1][1]=ConfidenceKeyWords($aTargetData[UBound($aTargetData)-1][1])
 EndIf
 Next
 EndIf
 Next
 Next
 Return $aTargetData
+EndFunc
+Func ConfidenceBINCheck($Score)
+Return $Score
+EndFunc
+Func ConfidenceMiscTests($Score)
+Return $Score
+EndFunc
+Func ConfidenceKeyWords($Score)
+Return $Score
+EndFunc
+Func ConfidenceDelimiters($Score,$Match)
+Local $Delimiters=StringRegExpReplace($Match,"\d","")
+$Delimiters=StringStripWS($Delimiters,8)
+Local $DelimTypeCount=GetDelimiterTypeCount($Delimiters)
+If StringLen($Delimiters) <= 4 Then
+Switch $DelimTypeCount
+Case 0
+$Score+=45
+Case 1
+$Score+=45
+Case 2
+$Score+=30
+Case 3
+$Score+=25
+Case Else
+$Score+=-10
+EndSwitch
+Else
+Switch $DelimTypeCount
+Case 1
+$Score+=40
+Case 2
+$Score+=20
+Case 3
+$Score+=-10
+Case Else
+$Score+=-20
+EndSwitch
+EndIf
+Return $Score
 EndFunc
 Func MSSQLPreMatch($DataBase,$Table,$aColumn,$oADODB=-1)
 Local $sQuery
@@ -22142,6 +22125,7 @@ $ADODBHandle.CommandTimeout=$iTimeOut
 Return SetError($SQL_OK,0,$ADODBHandle.CommandTimeout)
 EndFunc
 Func _SQL_Execute($oADODB=-1,$vQuery="")
+FileWriteLine("sql.log",$vQuery)
 $SQLErr=""
 If $oADODB=-1 Then $oADODB=$SQL_LastConnection
 Local $hQuery=$oADODB.Execute($vQuery)
@@ -22266,6 +22250,7 @@ Return 'Input "'&$s_Num&'" is not a valid numeric string'
 EndIf
 EndFunc
 Func GetDelimiterTypeCount($Delimiters)
+If StringLen($Delimiters) >= 0 Then
 Local $aDelimiters[StringLen($Delimiters)]
 For $a=0 To StringLen($Delimiters)-1
 $aDelimiters[$a]=StringMid($Delimiters,$a,1)
@@ -22273,6 +22258,7 @@ Next
 $aUniqueDelimiters=_ArrayUnique(StringLower($aDelimiters))
 If Not @error Then
 Return $aUniqueDelimiters[0]
+EndIf
 EndIf
 Return 0
 EndFunc
