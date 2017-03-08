@@ -7,7 +7,7 @@
 #AutoIt3Wrapper_UseUpx=y
 #AutoIt3Wrapper_Compile_Both=y
 #AutoIt3Wrapper_Res_Description=DB Data locator
-#AutoIt3Wrapper_Res_Fileversion=0.1.0.54
+#AutoIt3Wrapper_Res_Fileversion=0.1.0.55
 #AutoIt3Wrapper_Res_Fileversion_AutoIncrement=y
 #AutoIt3Wrapper_Res_HiDpi=y
 #AutoIt3Wrapper_Run_Au3Stripper=y
@@ -225,6 +225,7 @@ While 1
 			cout("Staring payment card search")
 			Local $aTargetData=FindData($oADODB,$aOPTIONS)
 			cout("Scan complete")
+			_ArraySort($aTargetData,1,1,0,1)
 			_ArrayDisplay($aTargetData,"Payment Card Data","",0,"|","Match|Confidence|Cell Data|DB.Schema.Table.Column")
 			GUICtrlSetState($Button1,$GUI_Enable)
 			GUICtrlSetState($Button2,$GUI_Enable)
@@ -463,36 +464,33 @@ Func _SQL_GetDB($aOPTIONS,$Target="databases",$oADODB=-1)
 			$SQL_Query=$SQL_Query&"ORDER BY TABLE_NAME;"
 		Case "columns"
 			$aExcludes=GetExcludes("DataTypes")
-			$SQL_Query = 'USE '&$aOPTIONS[7]&';SELECT * FROM INFORMATION_SCHEMA.COLUMNS where '
+			$SQL_Query='USE '&$aOPTIONS[7]&';SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE CHARACTER_MAXIMUM_LENGTH > 14 '
 			If $aExcludes[0]>0 Then
-				$SQL_Query=$SQL_Query&"DATA_TYPE NOT IN ("
+				$SQL_Query=$SQL_Query&"AND DATA_TYPE NOT IN ("
 				For $a=1 To $aExcludes[0]
 					$SQL_Query=$SQL_Query&"'"&$aExcludes[$a]&"',"
 				Next
 				$SQL_Query=StringTrimRight($SQL_Query,1)
-				$SQL_Query=$SQL_Query&") AND "
+				$SQL_Query=$SQL_Query&") "
 			EndIf
-			$SQL_Query=$SQL_Query&"TABLE_NAME='"&$aOPTIONS[8]&"' ORDER BY COLUMN_NAME;"
+			$SQL_Query=$SQL_Query&"AND TABLE_NAME='"&$aOPTIONS[8]&"' "
+
+			$SQL_Query=$SQL_Query&'OR CHARACTER_MAXIMUM_LENGTH < 1 '
+			If $aExcludes[0]>0 Then
+				$SQL_Query=$SQL_Query&"AND DATA_TYPE NOT IN ("
+				For $a=1 To $aExcludes[0]
+					$SQL_Query=$SQL_Query&"'"&$aExcludes[$a]&"',"
+				Next
+				$SQL_Query=StringTrimRight($SQL_Query,1)
+				$SQL_Query=$SQL_Query&") "
+			EndIf
+			$SQL_Query=$SQL_Query&"AND TABLE_NAME='"&$aOPTIONS[8]&"'"
+
+			$SQL_Query=$SQL_Query&" ORDER BY COLUMN_NAME;"
 	EndSwitch
 
 	;Query Database
 	_SQL_GetData2D($oADODB,$SQL_Query,$aResults,$iRows,$iColumns)
-
-	;Remove invalid items
-	If $iRows>0 Then
-		_ArraySort($aResults,0,1)
-
-		;Check for min length
-		If $Target="columns" Then
-			Local $MinLength=15
-			For $a=UBound($aResults)-1 To 1 Step -1
-				If $aResults[$a][8]="" Then $aResults[$a][8]=-1
-				If $aResults[$a][8]<$MinLength And $aResults[$a][8]<>-1 Then
-					_ArrayDelete($aResults,$a)
-				EndIf
-			Next
-		EndIf
-	EndIf
 
 	Return $aResults
 EndFunc
@@ -548,19 +546,22 @@ Func FindData($oADODB,$aOPTIONS)
 						Local $PullCount=0
 						Switch $aColumn[2] ;Cell length
 							Case 1 To 20
-								$PullCount=3000
+								$PullCount=5000
 							Case 21 To 50
-								$PullCount=2000
+								$PullCount=4000
 							Case 51 To 100
-								$PullCount=1500
+								$PullCount=2500
 							Case 101 To 500
-								$PullCount=500
+								$PullCount=1800
 							Case 501 To 1000
-								$PullCount=250
+								$PullCount=1200
+							Case 1001 To 2000
+								$PullCount=800
 							Case Else
-								$PullCount=100
+								$PullCount=300
 						EndSwitch
 
+						Local $ColumnProcStart=_NowCalc()
 						For $e=1 To $aTables[$b][1] Step $PullCount ;Loop through all records in #dataloc
 							Local $sQuery="SELECT * FROM #dataloc WHERE (RowNumber >="&$e&" AND RowNumber <="&$e+$PullCount-1&") ORDER BY RowNumber;"
 							Local $aPreProc[1][1],$iRows=0,$iColumns=0
@@ -583,6 +584,9 @@ Func FindData($oADODB,$aOPTIONS)
 							Else
 								ExitLoop
 							EndIf
+
+							;Column Timeout
+							If _DateDiff('n',$ColumnProcStart,_NowCalc()) > 9 Then ExitLoop
 						Next
 					Next
 				EndIf
@@ -687,13 +691,13 @@ Func PostProcessing($aOPTIONS,$aPreProc)
 
 	Local $aRegexPattern[5]
 	;American Express starts with 34 or 37 and has 15 digits
-	$aRegexPattern[1]="(?<![0-9])3\D{0,4}(4|7)(\D{0,4}\d){13}(?![0-9])"
+	$aRegexPattern[1]="(?<![0-9])3\D{0,4}(4|7)(\D{0,4}\d){13}[^0-9]"
 	;Discover begin with 6011 or 65. All have 16 digits.
-	$aRegexPattern[2]="(?<![0-9])6\D{0,4}(5(\D{0,4}\d){14}(\D?|$)|0\D{0,4}1\D{0,4}1(\D{0,4}\d){12}(?![0-9]))"
+	$aRegexPattern[2]="(?<![0-9])6\D{0,4}(5(\D{0,4}\d){14}(\D?|$)|0\D{0,4}1\D{0,4}1(\D{0,4}\d){12})[^0-9]"
 	;MasterCard  start with 50 through 55. 16 digits
-	$aRegexPattern[3]="(?<![0-9])5\D{0,4}(0-5)(\D{0,4}\d){14}(?![0-9])"
-	;Visa All cards start with 4 length is *NOT* 13-16 digits. 16 only.
-	$aRegexPattern[4]="(?<![0-9])4(\D{0,4}\d){15}(?![0-9])"
+	$aRegexPattern[3]="(?<![0-9])5\D{0,4}(0-5)(\D{0,4}\d){14}[^0-9]"
+	;Visa All cards start with 4 length is 13-16 digits. Only checking for 16 since 13 digit cards expired a long time ago.
+	$aRegexPattern[4]="(?<![0-9])4(\D{0,4}\d){15}[^0-9]"
 
 	For $a=1 To UBound($aPreProc)-1
 		$aPreProc[$a][1]=StringReplace($aPreProc[$a][1],@CR,"")
@@ -714,21 +718,24 @@ Func PostProcessing($aOPTIONS,$aPreProc)
 					Local $aMatch=$aRegExResults[$c]
 					Local $NumericMatch=StringRegExpReplace($aMatch[0],"\D","")
 					If _LuhnCheck($NumericMatch)="True" Then
-;~ 						$aTargetData[1][3] ;Match|Confidence|OriginalCellData
-						$aTargetData[0][0]+=1
-						_ArrayAdd($aTargetData,$NumericMatch&"|50|"&$aPreProc[$a][1])
+						Local $aAnalysisTarget[3]
+						$aAnalysisTarget[0]=$NumericMatch      ;Match
+						$aAnalysisTarget[1]=50                 ;Confidence
+						$aAnalysisTarget[2]=$aPreProc[$a][1]   ;FullCellContents
 
-						;Remove extra characters resulting from not prepended or followed by a number check
-						If StringIsInt(StringRight($aMatch[0],1))=0 Then StringTrimRight($aMatch[0],1)
-						If StringIsInt(StringLeft($aMatch[0],1))=0 Then StringTrimLeft($aMatch[0],1)
+					;Score Finding
+						$aAnalysisTarget[1]=ConfidenceDelimiters($aAnalysisTarget[1],$aMatch[0])
+						$aAnalysisTarget[1]=ConfidenceKeyWords($aAnalysisTarget[0],$aAnalysisTarget[1],$aAnalysisTarget[2])
+						$aAnalysisTarget[1]=ConfidenceIINCheck($aAnalysisTarget[0],$aAnalysisTarget[1])
+						$aAnalysisTarget[1]=ConfidenceMiscTests($aAnalysisTarget[1],$aMatch[0],$aAnalysisTarget[2])
 
-						;Score Finding
-						;Delimiters
-						$aTargetData[UBound($aTargetData)-1][1]=ConfidenceDelimiters($aTargetData[UBound($aTargetData)-1][1],$aMatch[0])
-						;KeyWords - Cell data and column / table names
-						$aTargetData[UBound($aTargetData)-1][1]=ConfidenceKeyWords($aTargetData[UBound($aTargetData)-1][1])
-						;IIN - Issuer identification number check
-						$aTargetData[UBound($aTargetData)-1][1]=ConfidenceIINCheck($aTargetData[UBound($aTargetData)-1][0],$aTargetData[UBound($aTargetData)-1][1])
+						;Add finding if threshhold met
+						If $aAnalysisTarget[1] > 40 Then
+							If $aAnalysisTarget[1] > 99 Then $aAnalysisTarget[1]=99
+							$aTargetData[0][0]+=1
+							_ArrayAdd($aTargetData,$aAnalysisTarget[0]&"|"&$aAnalysisTarget[1]&"|"&$aAnalysisTarget[2])
+						EndIf
+
 					EndIf
 				Next
 			EndIf
@@ -738,7 +745,113 @@ Func PostProcessing($aOPTIONS,$aPreProc)
 EndFunc
 
 ;#######################################################################
-;		ConfidenceBINCheck - Adjust score based known issuer ID in card number
+;		ConfidenceMiscTests - Adjust score based on additional patterns
+;-----------------------------------------------------------------------
+Func ConfidenceMiscTests($Score,$FullMatch,$CellData)
+	Local $Delimiters=StringRegExpReplace($FullMatch,"\d","")
+	$Delimiters=StringStripWS($Delimiters,8)
+
+	;Trim extras
+	If IsNumber(StringLeft($FullMatch,1))=0 Then $FullMatch=StringTrimLeft($FullMatch,1)
+	If IsNumber(StringRight($FullMatch,1))=0 Then $FullMatch=StringTrimRight($FullMatch,1)
+	;Escape specials
+	$FullMatch=StringReplace($FullMatch,"\","\\")
+	$FullMatch=StringReplace($FullMatch,".","\.")
+	$FullMatch=StringReplace($FullMatch,"^","\^")
+	$FullMatch=StringReplace($FullMatch,"$","\$")
+	$FullMatch=StringReplace($FullMatch,"|","\|")
+	$FullMatch=StringReplace($FullMatch,"[","\[")
+	$FullMatch=StringReplace($FullMatch,"(","\(")
+	$FullMatch=StringReplace($FullMatch,"{","\{")
+	$FullMatch=StringReplace($FullMatch,"*","\*")
+	$FullMatch=StringReplace($FullMatch,"+","\+")
+	$FullMatch=StringReplace($FullMatch,"?","\?")
+	$FullMatch=StringReplace($FullMatch,"#","\#")
+	$FullMatch=StringReplace($FullMatch,"]","\]")
+	$FullMatch=StringReplace($FullMatch,")","\)")
+	$FullMatch=StringReplace($FullMatch,"}","\}")
+
+	If StringRegExp(StringLower($Delimiters),"[a-z]\D",0)=1 Then $Score+=-40 ;Reduce score if letters exist as delimiters
+	If StringRegExp($CellData,"[0-9][^0-9]"&$FullMatch,0)=1 Then $Score+=-50     ;
+	If StringRegExp($CellData,$FullMatch&"\D[0-9]{3}\D",0)=1 Then $Score+=5  ;
+
+	Return $Score
+EndFunc
+
+;#######################################################################
+;		ConfidenceKeyWords - Adjust score based on Cell data key words
+;-----------------------------------------------------------------------
+Func ConfidenceKeyWords($NumericMatch,$Score,$CellData)
+
+	;Card specific checks
+	Switch StringLeft($NumericMatch,1)
+		Case 3 ;American Express
+			If StringInStr($CellData,"amex") > 0 Then $Score+=10
+			If StringInStr($CellData,"american") > 0 Then $Score+=5
+			If StringInStr($CellData,"express") > 0 Then $Score+=5
+		Case 4 ;Visa
+			If StringInStr($CellData,"visa") > 0 Then $Score+=10
+		Case 5 ;MasterCard
+			If StringInStr($CellData,"mastercard") > 0 Then $Score+=10
+		Case 6 ;Discover
+			If StringInStr($CellData,"discover") > 0 Then $Score+=10
+	EndSwitch
+
+	;Generic checks
+	If StringInStr($CellData," cc") > 0 Then $Score+=5     ;
+	If StringInStr($CellData,"aaa") > 0 Then $Score+=-25   ;Triple A membership number
+	If StringInStr($CellData,"billing") > 0 Then $Score+=5 ;
+	If StringInStr($CellData,"card") > 0 Then $Score+=5    ;
+	If StringInStr($CellData,"credit") > 0 Then $Score+=5  ;
+	If StringInStr($CellData,"cvv") > 0 Then $Score+=10    ;
+	If StringInStr($CellData,"payment") > 0 Then $Score+=5 ;
+
+	Return $Score
+EndFunc
+
+;#######################################################################
+;		ConfidenceDelimiters - Adjust score based on number and type of delimiters
+;-----------------------------------------------------------------------
+Func ConfidenceDelimiters($Score,$Match)
+	;Find the total number of spaces used by delimiters
+	Local $Delimiters=StringRegExpReplace($Match,"\d","")
+	$Delimiters=StringStripWS($Delimiters,8)
+
+	;Find the number of unique delimiter types "-/+" = 3 for example
+	Local $DelimTypeCount=GetDelimiterTypeCount($Delimiters)
+
+	;Adjust score based on number and type of delimiters
+	If StringLen($Delimiters) <= 4 Then
+		Switch $DelimTypeCount
+			Case 0
+				$Score+=15
+			Case 1
+				$Score+=10
+			Case 2
+				$Score+=5
+			Case 3
+				$Score+=-20
+			Case Else
+				$Score+=-25
+		EndSwitch
+	Else
+		Switch $DelimTypeCount
+			Case 1
+				$Score+=15
+			Case 2
+				$Score+=-10
+			Case 3
+				$Score+=-30
+			Case Else
+				$Score+=-40
+		EndSwitch
+	EndIf
+
+	Return $Score
+EndFunc
+
+;#######################################################################
+;		ConfidenceIINCheck - Adjust score based known issuer ID in card number
 ;-----------------------------------------------------------------------
 ;The first 6 digits of a credit card number are known as the Issuer Identification Number (IIN)
 Func ConfidenceIINCheck($ExactMatch,$Score)
@@ -749,7 +862,7 @@ Func ConfidenceIINCheck($ExactMatch,$Score)
 	$MatchIIN=StringLeft($ExactMatch,6)
 	For $a=0 To UBound($aIINList)-1
 		If $MatchIIN=$aIINList[$a] Then
-			$Score+=15
+			$Score+=10
 			$bMF=1
 			ExitLoop
 		EndIf
@@ -761,7 +874,7 @@ Func ConfidenceIINCheck($ExactMatch,$Score)
 		$MatchIIN=StringLeft($ExactMatch,4)
 		For $a=0 To UBound($aIINList)-1
 			If $MatchIIN=$aIINList[$a] Then
-				$Score+=10
+				$Score+=5
 				$bMF=1
 				ExitLoop
 			EndIf
@@ -769,7 +882,7 @@ Func ConfidenceIINCheck($ExactMatch,$Score)
 	EndIf
 
 	;No match
-	If $bMF=0 Then $Score-=10
+	If $bMF=0 Then $Score+=-5
 	Return $Score
 EndFunc
 
@@ -1665,7 +1778,6 @@ Func IINGetList($FirstDigit,$Length)
 					$aIINList[788]=499897 ;- DKB Deutsche Kreditbank AG VISA credit card (Germany)
 					$aIINList[789]=499977 ;- Bank of New Zealand VISA Credit Card
 					$aIINList[790]=499985 ;- Bank of New Zealand VISA Gold Credit Card
-			Switch $Length
 				Case 4
 					Local $aIINList[207]
 					$aIINList[0]=4013 ;- Visa Debit Card
@@ -1876,77 +1988,1910 @@ Func IINGetList($FirstDigit,$Length)
 					$aIINList[205]=4327 ;- North Carolina State Employees' Credit Union VISA Check Card
 					$aIINList[206]=4412 ;- Deutsche Bank (DE) Gold Credit Card except 97
 			EndSwitch
+		Case 5 ;MasterCard
+			Switch $Length
+				Case 6
+					Local $aIINList[1779]
+					$aIINList[0]=500235 ;- CA National Bank of Canada ATM/Debit Card
+					$aIINList[1]=500766 ;- CA Bank of Montreal ATM/Debit Card
+					$aIINList[2]=501007 ;- AU Westpac Banking Corporation Handycard ATM (including Cirrus) and eftpos card
+					$aIINList[3]=501008 ;- AU Westpac Banking Corporation Mondex purse card (2000 trial ;- no longer used)
+					$aIINList[4]=501012 ;- CA Meridian Credit Union Debit and Exchange Network Card
+					$aIINList[5]=502029 ;- ASPIDER Smartcards for Mobile Telecommunications
+					$aIINList[6]=502123 ;- KR Kookmin Card Check Card (Maestro Debit Card)
+					$aIINList[7]=503615 ;- ZA Standard Bank of South Africa Maestro Debit Card
+					$aIINList[8]=504507 ;- Barnes & Noble Gift Card
+					$aIINList[9]=504834 ;- IN ING Vysya Bank Maestro Debit/ATM Card
+					$aIINList[10]=504837 ;- US Fleet Bank ATM Only Card.
+					$aIINList[11]=507704 ;- US Maestro Indiana EBT Card
+					$aIINList[12]=507708 ;- US Maestro Wisconsin EBT Card
+					$aIINList[13]=507709 ;- US Maestro Kentucky EBT Card
+					$aIINList[14]=507711 ;- US Maestro Michigan EBT Card
+					$aIINList[15]=507717 ;- US Maestro Texas EBT Card
+					$aIINList[16]=507719 ;- US Maestro California EBT Card
+					$aIINList[17]=507720 ;- US Maestro West Virginia EBT Card∤
+					$aIINList[18]=510000 ;- RO Amro Bank
+					$aIINList[19]=510001 ;- GR Agricultural Bank of Greece
+					$aIINList[20]=510002 ;- EE Estonia Credit Bank
+					$aIINList[21]=510003 ;- KR Samsung Card Co
+					$aIINList[22]=510005 ;- TR HSBC
+					$aIINList[23]=510008 ;- NL VSB International
+					$aIINList[24]=510009 ;- CH Europay
+					$aIINList[25]=510010 ;- PL Powszchny Bank Kredytowy Warszawie
+					$aIINList[26]=510011 ;- CH Europay
+					$aIINList[27]=510013 ;- ES SEMP
+					$aIINList[28]=510014 ;- ES SEMP
+					$aIINList[29]=510015 ;- GR Agricultural Bank of Greece
+					$aIINList[30]=510016 ;- GR Agricultural Bank of Greece
+					$aIINList[31]=510017 ;- ES Fimestic Bank
+					$aIINList[32]=510018 ;- PL PKO Savings Bank
+					$aIINList[33]=510019 ;- HU Budapest Bank Ltd Investment Card, embossed.
+					$aIINList[34]=510021 ;- CH Europay
+					$aIINList[35]=510022 ;- CH Europay
+					$aIINList[36]=510023 ;- CH Europay
+					$aIINList[37]=510024 ;- ES SEMP
+					$aIINList[38]=510025 ;- ES SEMP
+					$aIINList[39]=510029 ;- NL VSB International
+					$aIINList[40]=510030 ;- FI SEB Kort
+					$aIINList[41]=510034 ;- ES Fimestic Bank
+					$aIINList[42]=510035 ;- BY Belarus Bank
+					$aIINList[43]=510036 ;- AD Sabadell Bank of Andorra
+					$aIINList[44]=510037 ;- GR General Bank of Greece
+					$aIINList[45]=510038 ;- RU Bank of Trade Unions Solidarity and Social Investment (Solidarnost)
+					$aIINList[46]=510039 ;- RU Bank of Trade Unions Solidarity and Social Investment (Solidarnost)
+					$aIINList[47]=510040 ;- US 5-Star Bank
+					$aIINList[48]=510060 ;- ES SEMP
+					$aIINList[49]=510061 ;- ES SEMP
+					$aIINList[50]=510062 ;- ES SEMP
+					$aIINList[51]=510087 ;- ES Santander Bank Debit Card
+					$aIINList[52]=510136 ;- CZ CitiBank Gold Credit Card
+					$aIINList[53]=510142 ;- CZ CitiBank
+					$aIINList[54]=510197 ;- UBS AG MasterCard
+					$aIINList[55]=510241 ;- UK RBS
+					$aIINList[56]=510259 ;- PL Alior Sync MasterCard Debit Card
+					$aIINList[57]=510782 ;- US FirstMerit Corporation MasterCard Debit Card
+					$aIINList[58]=510840 ;- The Bancorp Bank Higher One MasterCard Debit Card
+					$aIINList[59]=510875 ;- US Lake Michigan Credit Union MasterCard Debit Card
+					$aIINList[60]=510982 ;- US USAA USAA Cash Rewards Debit MasterCard
+					$aIINList[61]=511000 ;- US Chase Manhattan Bank USA
+					$aIINList[62]=511001 ;- US Chase Manhattan Bank USA
+					$aIINList[63]=511002 ;- US Chase Manhattan Bank USA
+					$aIINList[64]=511003 ;- US Chase Manhattan Bank USA
+					$aIINList[65]=511004 ;- US Chase Manhattan Bank USA
+					$aIINList[66]=511005 ;- US Chase Manhattan Bank USA
+					$aIINList[67]=511006 ;- US Chase Manhattan Bank USA
+					$aIINList[68]=511007 ;- US Chase Manhattan Bank USA
+					$aIINList[69]=511008 ;- US Chase Manhattan Bank USA
+					$aIINList[70]=511009 ;- US Chase Manhattan Bank USA
+					$aIINList[71]=511010 ;- US Chase Manhattan Bank USA
+					$aIINList[72]=511011 ;- US Chase Manhattan Bank USA
+					$aIINList[73]=511012 ;- US Chase Manhattan Bank USA
+					$aIINList[74]=511013 ;- US Chase Manhattan Bank USA
+					$aIINList[75]=511014 ;- US Chase Manhattan Bank USA
+					$aIINList[76]=511015 ;- US Chase Manhattan Bank USA
+					$aIINList[77]=511016 ;- US Chase Manhattan Bank USA
+					$aIINList[78]=511017 ;- US Chase Manhattan Bank USA
+					$aIINList[79]=511018 ;- US Chase Manhattan Bank USA
+					$aIINList[80]=511019 ;- US Chase Manhattan Bank USA
+					$aIINList[81]=511020 ;- US Chase Manhattan Bank USA
+					$aIINList[82]=511021 ;- US Chase Manhattan Bank USA
+					$aIINList[83]=511022 ;- US Chase Manhattan Bank USA
+					$aIINList[84]=511023 ;- US Chase Manhattan Bank USA
+					$aIINList[85]=511024 ;- US Chase Manhattan Bank USA
+					$aIINList[86]=511025 ;- US Chase Manhattan Bank USA
+					$aIINList[87]=511026 ;- US Chase Manhattan Bank USA
+					$aIINList[88]=511027 ;- US Chase Manhattan Bank USA
+					$aIINList[89]=511028 ;- US Chase Manhattan Bank USA
+					$aIINList[90]=511029 ;- US Chase Manhattan Bank USA
+					$aIINList[91]=511030 ;- US Chase Manhattan Bank USA
+					$aIINList[92]=511031 ;- US Chase Manhattan Bank USA
+					$aIINList[93]=511032 ;- US Chase Manhattan Bank USA
+					$aIINList[94]=511033 ;- US Chase Manhattan Bank USA
+					$aIINList[95]=511034 ;- US Chase Manhattan Bank USA
+					$aIINList[96]=511035 ;- US Chase Manhattan Bank USA
+					$aIINList[97]=511036 ;- US Chase Manhattan Bank USA
+					$aIINList[98]=511037 ;- US Chase Manhattan Bank USA
+					$aIINList[99]=511038 ;- US Chase Manhattan Bank USA
+					$aIINList[100]=511039 ;- US Chase Manhattan Bank USA
+					$aIINList[101]=511040 ;- US Chase Manhattan Bank USA
+					$aIINList[102]=511041 ;- US Chase Manhattan Bank USA
+					$aIINList[103]=511042 ;- US Chase Manhattan Bank USA
+					$aIINList[104]=511043 ;- US Chase Manhattan Bank USA
+					$aIINList[105]=511044 ;- US Chase Manhattan Bank USA
+					$aIINList[106]=511045 ;- US Chase Manhattan Bank USA
+					$aIINList[107]=511046 ;- US Chase Manhattan Bank USA
+					$aIINList[108]=511047 ;- US Chase Manhattan Bank USA
+					$aIINList[109]=511048 ;- US Chase Manhattan Bank USA
+					$aIINList[110]=511049 ;- US Chase Manhattan Bank USA
+					$aIINList[111]=511050 ;- US Chase Manhattan Bank USA
+					$aIINList[112]=511051 ;- US Chase Manhattan Bank USA
+					$aIINList[113]=511052 ;- US Chase Manhattan Bank USA
+					$aIINList[114]=511053 ;- US Chase Manhattan Bank USA
+					$aIINList[115]=511054 ;- US Chase Manhattan Bank USA
+					$aIINList[116]=511055 ;- US Chase Manhattan Bank USA
+					$aIINList[117]=511056 ;- US Chase Manhattan Bank USA
+					$aIINList[118]=511057 ;- US Chase Manhattan Bank USA
+					$aIINList[119]=511058 ;- US Chase Manhattan Bank USA
+					$aIINList[120]=511059 ;- US Chase Manhattan Bank USA
+					$aIINList[121]=511060 ;- US Chase Manhattan Bank USA
+					$aIINList[122]=511061 ;- US Chase Manhattan Bank USA
+					$aIINList[123]=511062 ;- US Chase Manhattan Bank USA
+					$aIINList[124]=511063 ;- US Chase Manhattan Bank USA
+					$aIINList[125]=511064 ;- US Chase Manhattan Bank USA
+					$aIINList[126]=511065 ;- US Chase Manhattan Bank USA
+					$aIINList[127]=511066 ;- US Chase Manhattan Bank USA
+					$aIINList[128]=511067 ;- US Chase Manhattan Bank USA
+					$aIINList[129]=511068 ;- US Chase Manhattan Bank USA
+					$aIINList[130]=511069 ;- US Chase Manhattan Bank USA
+					$aIINList[131]=511070 ;- US Chase Manhattan Bank USA
+					$aIINList[132]=511071 ;- US Chase Manhattan Bank USA
+					$aIINList[133]=511072 ;- US Chase Manhattan Bank USA
+					$aIINList[134]=511073 ;- US Chase Manhattan Bank USA
+					$aIINList[135]=511074 ;- US Chase Manhattan Bank USA
+					$aIINList[136]=511075 ;- US Chase Manhattan Bank USA
+					$aIINList[137]=511076 ;- US Chase Manhattan Bank USA
+					$aIINList[138]=511077 ;- US Chase Manhattan Bank USA
+					$aIINList[139]=511078 ;- US Chase Manhattan Bank USA
+					$aIINList[140]=511079 ;- US Chase Manhattan Bank USA
+					$aIINList[141]=511080 ;- US Chase Manhattan Bank USA
+					$aIINList[142]=511081 ;- US Chase Manhattan Bank USA
+					$aIINList[143]=511082 ;- US Chase Manhattan Bank USA
+					$aIINList[144]=511083 ;- US Chase Manhattan Bank USA
+					$aIINList[145]=511084 ;- US Chase Manhattan Bank USA
+					$aIINList[146]=511085 ;- US Chase Manhattan Bank USA
+					$aIINList[147]=511086 ;- US Chase Manhattan Bank USA
+					$aIINList[148]=511087 ;- US Chase Manhattan Bank USA
+					$aIINList[149]=511088 ;- US Chase Manhattan Bank USA
+					$aIINList[150]=511089 ;- US Chase Manhattan Bank USA
+					$aIINList[151]=511090 ;- US Chase Manhattan Bank USA
+					$aIINList[152]=511091 ;- US Chase Manhattan Bank USA
+					$aIINList[153]=511092 ;- US Chase Manhattan Bank USA
+					$aIINList[154]=511093 ;- US Chase Manhattan Bank USA
+					$aIINList[155]=511094 ;- US Chase Manhattan Bank USA
+					$aIINList[156]=511095 ;- US Chase Manhattan Bank USA
+					$aIINList[157]=511096 ;- US Chase Manhattan Bank USA
+					$aIINList[158]=511097 ;- US Chase Manhattan Bank USA
+					$aIINList[159]=511098 ;- US Chase Manhattan Bank USA
+					$aIINList[160]=511099 ;- US Chase Manhattan Bank USA
+					$aIINList[161]=511100 ;- US Chase Manhattan Bank USA
+					$aIINList[162]=511101 ;- US Chase Manhattan Bank USA
+					$aIINList[163]=511102 ;- US Chase Manhattan Bank USA
+					$aIINList[164]=511103 ;- US Chase Manhattan Bank USA
+					$aIINList[165]=511104 ;- US Chase Manhattan Bank USA
+					$aIINList[166]=511105 ;- US Chase Manhattan Bank USA
+					$aIINList[167]=511106 ;- US Chase Manhattan Bank USA
+					$aIINList[168]=511107 ;- US Chase Manhattan Bank USA
+					$aIINList[169]=511108 ;- US Chase Manhattan Bank USA
+					$aIINList[170]=511109 ;- US Chase Manhattan Bank USA
+					$aIINList[171]=511110 ;- US Chase Manhattan Bank USA
+					$aIINList[172]=511111 ;- US Chase Manhattan Bank USA
+					$aIINList[173]=511112 ;- US Chase Manhattan Bank USA
+					$aIINList[174]=511113 ;- US Chase Manhattan Bank USA
+					$aIINList[175]=511114 ;- US Chase Manhattan Bank USA
+					$aIINList[176]=511115 ;- US Chase Manhattan Bank USA
+					$aIINList[177]=511116 ;- US Chase Manhattan Bank USA
+					$aIINList[178]=511117 ;- US Chase Manhattan Bank USA
+					$aIINList[179]=511118 ;- US Chase Manhattan Bank USA
+					$aIINList[180]=511119 ;- US Chase Manhattan Bank USA
+					$aIINList[181]=511120 ;- US Chase Manhattan Bank USA
+					$aIINList[182]=511121 ;- US Chase Manhattan Bank USA
+					$aIINList[183]=511122 ;- US Chase Manhattan Bank USA
+					$aIINList[184]=511123 ;- US Chase Manhattan Bank USA
+					$aIINList[185]=511124 ;- US Chase Manhattan Bank USA
+					$aIINList[186]=511125 ;- US Chase Manhattan Bank USA
+					$aIINList[187]=511126 ;- US Chase Manhattan Bank USA
+					$aIINList[188]=511127 ;- US Chase Manhattan Bank USA
+					$aIINList[189]=511128 ;- US Chase Manhattan Bank USA
+					$aIINList[190]=511129 ;- US Chase Manhattan Bank USA
+					$aIINList[191]=511130 ;- US Chase Manhattan Bank USA
+					$aIINList[192]=511131 ;- US Chase Manhattan Bank USA
+					$aIINList[193]=511132 ;- US Chase Manhattan Bank USA
+					$aIINList[194]=511133 ;- US Chase Manhattan Bank USA
+					$aIINList[195]=511134 ;- US Chase Manhattan Bank USA
+					$aIINList[196]=511135 ;- US Chase Manhattan Bank USA
+					$aIINList[197]=511136 ;- US Chase Manhattan Bank USA
+					$aIINList[198]=511137 ;- US Chase Manhattan Bank USA
+					$aIINList[199]=511138 ;- US Chase Manhattan Bank USA
+					$aIINList[200]=511139 ;- US Chase Manhattan Bank USA
+					$aIINList[201]=511140 ;- US Chase Manhattan Bank USA
+					$aIINList[202]=511141 ;- US Chase Manhattan Bank USA
+					$aIINList[203]=511142 ;- US Chase Manhattan Bank USA
+					$aIINList[204]=511143 ;- US Chase Manhattan Bank USA
+					$aIINList[205]=511144 ;- US Chase Manhattan Bank USA
+					$aIINList[206]=511145 ;- US Chase Manhattan Bank USA
+					$aIINList[207]=511146 ;- US Chase Manhattan Bank USA
+					$aIINList[208]=511147 ;- US Chase Manhattan Bank USA
+					$aIINList[209]=511148 ;- US Chase Manhattan Bank USA
+					$aIINList[210]=511149 ;- US Chase Manhattan Bank USA
+					$aIINList[211]=511150 ;- US Chase Manhattan Bank USA
+					$aIINList[212]=511151 ;- US Chase Manhattan Bank USA
+					$aIINList[213]=511152 ;- US Chase Manhattan Bank USA
+					$aIINList[214]=511153 ;- US Chase Manhattan Bank USA
+					$aIINList[215]=511154 ;- US Chase Manhattan Bank USA
+					$aIINList[216]=511155 ;- US Chase Manhattan Bank USA
+					$aIINList[217]=511156 ;- US Chase Manhattan Bank USA
+					$aIINList[218]=511157 ;- US Chase Manhattan Bank USA
+					$aIINList[219]=511158 ;- US Chase Manhattan Bank USA
+					$aIINList[220]=511159 ;- US Chase Manhattan Bank USA
+					$aIINList[221]=511160 ;- US Chase Manhattan Bank USA
+					$aIINList[222]=511161 ;- US Chase Manhattan Bank USA
+					$aIINList[223]=511162 ;- US Chase Manhattan Bank USA
+					$aIINList[224]=511163 ;- US Chase Manhattan Bank USA
+					$aIINList[225]=511164 ;- US Chase Manhattan Bank USA
+					$aIINList[226]=511165 ;- US Chase Manhattan Bank USA
+					$aIINList[227]=511166 ;- US Chase Manhattan Bank USA
+					$aIINList[228]=511167 ;- US Chase Manhattan Bank USA
+					$aIINList[229]=511168 ;- US Chase Manhattan Bank USA
+					$aIINList[230]=511169 ;- US Chase Manhattan Bank USA
+					$aIINList[231]=511170 ;- US Chase Manhattan Bank USA
+					$aIINList[232]=511171 ;- US Chase Manhattan Bank USA
+					$aIINList[233]=511172 ;- US Chase Manhattan Bank USA
+					$aIINList[234]=511173 ;- US Chase Manhattan Bank USA
+					$aIINList[235]=511174 ;- US Chase Manhattan Bank USA
+					$aIINList[236]=511175 ;- US Chase Manhattan Bank USA
+					$aIINList[237]=511176 ;- US Chase Manhattan Bank USA
+					$aIINList[238]=511177 ;- US Chase Manhattan Bank USA
+					$aIINList[239]=511178 ;- US Chase Manhattan Bank USA
+					$aIINList[240]=511179 ;- US Chase Manhattan Bank USA
+					$aIINList[241]=511180 ;- US Chase Manhattan Bank USA
+					$aIINList[242]=511181 ;- US Chase Manhattan Bank USA
+					$aIINList[243]=511182 ;- US Chase Manhattan Bank USA
+					$aIINList[244]=511183 ;- US Chase Manhattan Bank USA
+					$aIINList[245]=511184 ;- US Chase Manhattan Bank USA
+					$aIINList[246]=511185 ;- US Chase Manhattan Bank USA
+					$aIINList[247]=511186 ;- US Chase Manhattan Bank USA
+					$aIINList[248]=511187 ;- US Chase Manhattan Bank USA
+					$aIINList[249]=511188 ;- US Chase Manhattan Bank USA
+					$aIINList[250]=511189 ;- US Chase Manhattan Bank USA
+					$aIINList[251]=511190 ;- US Chase Manhattan Bank USA
+					$aIINList[252]=511191 ;- US Chase Manhattan Bank USA
+					$aIINList[253]=511192 ;- US Chase Manhattan Bank USA
+					$aIINList[254]=511193 ;- US Chase Manhattan Bank USA
+					$aIINList[255]=511194 ;- US Chase Manhattan Bank USA
+					$aIINList[256]=511195 ;- US Chase Manhattan Bank USA
+					$aIINList[257]=511196 ;- US Chase Manhattan Bank USA
+					$aIINList[258]=511197 ;- US Chase Manhattan Bank USA
+					$aIINList[259]=511198 ;- US Chase Manhattan Bank USA
+					$aIINList[260]=511199 ;- US Chase Manhattan Bank USA
+					$aIINList[261]=511200 ;- US Chase Manhattan Bank USA
+					$aIINList[262]=511201 ;- US Chase Manhattan Bank USA
+					$aIINList[263]=511202 ;- US Chase Manhattan Bank USA
+					$aIINList[264]=511203 ;- US Chase Manhattan Bank USA
+					$aIINList[265]=511204 ;- US Chase Manhattan Bank USA
+					$aIINList[266]=511205 ;- US Chase Manhattan Bank USA
+					$aIINList[267]=511206 ;- US Chase Manhattan Bank USA
+					$aIINList[268]=511207 ;- US Chase Manhattan Bank USA
+					$aIINList[269]=511208 ;- US Chase Manhattan Bank USA
+					$aIINList[270]=511209 ;- US Chase Manhattan Bank USA
+					$aIINList[271]=511210 ;- US Chase Manhattan Bank USA
+					$aIINList[272]=511211 ;- US Chase Manhattan Bank USA
+					$aIINList[273]=511212 ;- US Chase Manhattan Bank USA
+					$aIINList[274]=511213 ;- US Chase Manhattan Bank USA
+					$aIINList[275]=511214 ;- US Chase Manhattan Bank USA
+					$aIINList[276]=511215 ;- US Chase Manhattan Bank USA
+					$aIINList[277]=511216 ;- US Chase Manhattan Bank USA
+					$aIINList[278]=511217 ;- US Chase Manhattan Bank USA
+					$aIINList[279]=511218 ;- US Chase Manhattan Bank USA
+					$aIINList[280]=511219 ;- US Chase Manhattan Bank USA
+					$aIINList[281]=511220 ;- US Chase Manhattan Bank USA
+					$aIINList[282]=511221 ;- US Chase Manhattan Bank USA
+					$aIINList[283]=511222 ;- US Chase Manhattan Bank USA
+					$aIINList[284]=511224 ;- US Chase Manhattan Bank USA
+					$aIINList[285]=511227 ;- US Chase Manhattan Bank USA
+					$aIINList[286]=511228 ;- US Chase Manhattan Bank USA
+					$aIINList[287]=511230 ;- US Chase Manhattan Bank USA
+					$aIINList[288]=511231 ;- US Chase Manhattan Bank USA
+					$aIINList[289]=511232 ;- US Chase Manhattan Bank USA
+					$aIINList[290]=511233 ;- US Chase Manhattan Bank USA
+					$aIINList[291]=511234 ;- US Chase Manhattan Bank USA
+					$aIINList[292]=511235 ;- US Chase Manhattan Bank USA
+					$aIINList[293]=511239 ;- US Chase Manhattan Bank USA
+					$aIINList[294]=511242 ;- US Chase Manhattan Bank USA
+					$aIINList[295]=511243 ;- US Chase Manhattan Bank USA
+					$aIINList[296]=511244 ;- US Chase Manhattan Bank USA
+					$aIINList[297]=511261 ;- US Chase Manhattan Bank USA
+					$aIINList[298]=511262 ;- US Chase Manhattan Bank USA
+					$aIINList[299]=511263 ;- US Chase Manhattan Bank USA
+					$aIINList[300]=511264 ;- US Chase Manhattan Bank USA
+					$aIINList[301]=511265 ;- US Chase Manhattan Bank USA
+					$aIINList[302]=511266 ;- US Chase Manhattan Bank USA
+					$aIINList[303]=511267 ;- US Chase Manhattan Bank USA
+					$aIINList[304]=511268 ;- US Chase Manhattan Bank USA
+					$aIINList[305]=511273 ;- US Chase Manhattan Bank USA
+					$aIINList[306]=511274 ;- US Chase Manhattan Bank USA
+					$aIINList[307]=511275 ;- US Chase Manhattan Bank USA
+					$aIINList[308]=511276 ;- US Chase Manhattan Bank USA
+					$aIINList[309]=511277 ;- US Chase Manhattan Bank USA
+					$aIINList[310]=511278 ;- US Chase Manhattan Bank USA
+					$aIINList[311]=511279 ;- US Chase Manhattan Bank USA
+					$aIINList[312]=511281 ;- US Chase Manhattan Bank USA
+					$aIINList[313]=511282 ;- US Chase Manhattan Bank USA
+					$aIINList[314]=511283 ;- US Chase Manhattan Bank USA
+					$aIINList[315]=511284 ;- US Chase Manhattan Bank USA
+					$aIINList[316]=511288 ;- US Chase Manhattan Bank USA
+					$aIINList[317]=511293 ;- US Chase Manhattan Bank USA
+					$aIINList[318]=511294 ;- US Chase Manhattan Bank USA
+					$aIINList[319]=511296 ;- US Chase Manhattan Bank USA
+					$aIINList[320]=511298 ;- US Chase Manhattan Bank USA
+					$aIINList[321]=511300 ;- US Chase Manhattan Bank USA
+					$aIINList[322]=511301 ;- US Chase Manhattan Bank USA
+					$aIINList[323]=511302 ;- US Chase Manhattan Bank USA
+					$aIINList[324]=511303 ;- US Chase Manhattan Bank USA
+					$aIINList[325]=511304 ;- US Chase Manhattan Bank USA
+					$aIINList[326]=511305 ;- US Chase Manhattan Bank USA
+					$aIINList[327]=511306 ;- US Chase Manhattan Bank USA
+					$aIINList[328]=511307 ;- US Chase Manhattan Bank USA
+					$aIINList[329]=511308 ;- US Chase Manhattan Bank USA
+					$aIINList[330]=511309 ;- US Chase Manhattan Bank USA
+					$aIINList[331]=511310 ;- US Chase Manhattan Bank USA
+					$aIINList[332]=511311 ;- US Chase Manhattan Bank USA
+					$aIINList[333]=511312 ;- US Chase Manhattan Bank USA
+					$aIINList[334]=511313 ;- US Chase Manhattan Bank USA
+					$aIINList[335]=511314 ;- US Chase Manhattan Bank USA
+					$aIINList[336]=511315 ;- US Chase Manhattan Bank USA
+					$aIINList[337]=511316 ;- US Chase Manhattan Bank USA
+					$aIINList[338]=511317 ;- US Chase Manhattan Bank USA
+					$aIINList[339]=511318 ;- US Chase Manhattan Bank USA
+					$aIINList[340]=511319 ;- US Chase Manhattan Bank USA
+					$aIINList[341]=511320 ;- US Chase Manhattan Bank USA
+					$aIINList[342]=511321 ;- US Chase Manhattan Bank USA
+					$aIINList[343]=511322 ;- US Chase Manhattan Bank USA
+					$aIINList[344]=511323 ;- US Chase Manhattan Bank USA
+					$aIINList[345]=511324 ;- US Chase Manhattan Bank USA
+					$aIINList[346]=511325 ;- US Chase Manhattan Bank USA
+					$aIINList[347]=511326 ;- US Chase Manhattan Bank USA
+					$aIINList[348]=511327 ;- US Chase Manhattan Bank USA
+					$aIINList[349]=511328 ;- US Chase Manhattan Bank USA
+					$aIINList[350]=511329 ;- US Chase Manhattan Bank USA
+					$aIINList[351]=511330 ;- US Chase Manhattan Bank USA
+					$aIINList[352]=511331 ;- US Chase Manhattan Bank USA
+					$aIINList[353]=511332 ;- US Chase Manhattan Bank USA
+					$aIINList[354]=511333 ;- US Chase Manhattan Bank USA
+					$aIINList[355]=511334 ;- US Chase Manhattan Bank USA
+					$aIINList[356]=511335 ;- US Chase Manhattan Bank USA
+					$aIINList[357]=511336 ;- US Chase Manhattan Bank USA
+					$aIINList[358]=511337 ;- US Chase Manhattan Bank USA
+					$aIINList[359]=511338 ;- US Chase Manhattan Bank USA
+					$aIINList[360]=511339 ;- US Chase Manhattan Bank USA
+					$aIINList[361]=511340 ;- US Chase Manhattan Bank USA
+					$aIINList[362]=511341 ;- US Chase Manhattan Bank USA
+					$aIINList[363]=511342 ;- US Chase Manhattan Bank USA
+					$aIINList[364]=511343 ;- US Chase Manhattan Bank USA
+					$aIINList[365]=511344 ;- US Chase Manhattan Bank USA
+					$aIINList[366]=511345 ;- US Chase Manhattan Bank USA
+					$aIINList[367]=511346 ;- US Chase Manhattan Bank USA
+					$aIINList[368]=511347 ;- US Chase Manhattan Bank USA
+					$aIINList[369]=511348 ;- US Chase Manhattan Bank USA
+					$aIINList[370]=511349 ;- US Chase Manhattan Bank USA
+					$aIINList[371]=511350 ;- US Chase Manhattan Bank USA
+					$aIINList[372]=511351 ;- US Chase Manhattan Bank USA
+					$aIINList[373]=511352 ;- US Chase Manhattan Bank USA
+					$aIINList[374]=511353 ;- US Chase Manhattan Bank USA
+					$aIINList[375]=511354 ;- US Chase Manhattan Bank USA
+					$aIINList[376]=511355 ;- US Chase Manhattan Bank USA
+					$aIINList[377]=511356 ;- US Chase Manhattan Bank USA
+					$aIINList[378]=511357 ;- US Chase Manhattan Bank USA
+					$aIINList[379]=511358 ;- US Chase Manhattan Bank USA
+					$aIINList[380]=511359 ;- US Chase Manhattan Bank USA
+					$aIINList[381]=511360 ;- US Chase Manhattan Bank USA
+					$aIINList[382]=511361 ;- US Chase Manhattan Bank USA
+					$aIINList[383]=511362 ;- US Chase Manhattan Bank USA
+					$aIINList[384]=511363 ;- US Chase Manhattan Bank USA
+					$aIINList[385]=511364 ;- US Chase Manhattan Bank USA
+					$aIINList[386]=511365 ;- US Chase Manhattan Bank USA
+					$aIINList[387]=511366 ;- US Chase Manhattan Bank USA
+					$aIINList[388]=511367 ;- US Chase Manhattan Bank USA
+					$aIINList[389]=511368 ;- US Chase Manhattan Bank USA
+					$aIINList[390]=511369 ;- US Chase Manhattan Bank USA
+					$aIINList[391]=511370 ;- US Chase Manhattan Bank USA
+					$aIINList[392]=511371 ;- US Chase Manhattan Bank USA
+					$aIINList[393]=511372 ;- US Chase Manhattan Bank USA
+					$aIINList[394]=511373 ;- US Chase Manhattan Bank USA
+					$aIINList[395]=511374 ;- US Chase Manhattan Bank USA
+					$aIINList[396]=511375 ;- US Chase Manhattan Bank USA
+					$aIINList[397]=511376 ;- US Chase Manhattan Bank USA
+					$aIINList[398]=511377 ;- US Chase Manhattan Bank USA
+					$aIINList[399]=511378 ;- US Chase Manhattan Bank USA
+					$aIINList[400]=511379 ;- US Chase Manhattan Bank USA
+					$aIINList[401]=511380 ;- US Chase Manhattan Bank USA
+					$aIINList[402]=511381 ;- US Chase Manhattan Bank USA
+					$aIINList[403]=511382 ;- US Chase Manhattan Bank USA
+					$aIINList[404]=511383 ;- US Chase Manhattan Bank USA
+					$aIINList[405]=511384 ;- US Chase Manhattan Bank USA
+					$aIINList[406]=511385 ;- US Chase Manhattan Bank USA
+					$aIINList[407]=511386 ;- US Chase Manhattan Bank USA
+					$aIINList[408]=511387 ;- US Chase Manhattan Bank USA
+					$aIINList[409]=511388 ;- US Chase Manhattan Bank USA
+					$aIINList[410]=511389 ;- US Chase Manhattan Bank USA
+					$aIINList[411]=511390 ;- US Chase Manhattan Bank USA
+					$aIINList[412]=511391 ;- US Chase Manhattan Bank USA
+					$aIINList[413]=511392 ;- US Chase Manhattan Bank USA
+					$aIINList[414]=511393 ;- US Chase Manhattan Bank USA
+					$aIINList[415]=511394 ;- US Chase Manhattan Bank USA
+					$aIINList[416]=511395 ;- US Chase Manhattan Bank USA
+					$aIINList[417]=511396 ;- US Chase Manhattan Bank USA
+					$aIINList[418]=511397 ;- US Chase Manhattan Bank USA
+					$aIINList[419]=511398 ;- US Chase Manhattan Bank USA
+					$aIINList[420]=511399 ;- US Chase Manhattan Bank USA
+					$aIINList[421]=511400 ;- US Chase Manhattan Bank USA
+					$aIINList[422]=511401 ;- US Chase Manhattan Bank USA
+					$aIINList[423]=511402 ;- US Chase Manhattan Bank USA
+					$aIINList[424]=511403 ;- US Chase Manhattan Bank USA
+					$aIINList[425]=511404 ;- US Chase Manhattan Bank USA
+					$aIINList[426]=511405 ;- US Chase Manhattan Bank USA
+					$aIINList[427]=511406 ;- US Chase Manhattan Bank USA
+					$aIINList[428]=511407 ;- US Chase Manhattan Bank USA
+					$aIINList[429]=511408 ;- US Chase Manhattan Bank USA
+					$aIINList[430]=511409 ;- US Chase Manhattan Bank USA
+					$aIINList[431]=511410 ;- US Chase Manhattan Bank USA
+					$aIINList[432]=511411 ;- US Chase Manhattan Bank USA
+					$aIINList[433]=511412 ;- US Chase Manhattan Bank USA
+					$aIINList[434]=511413 ;- US Chase Manhattan Bank USA
+					$aIINList[435]=511414 ;- US Chase Manhattan Bank USA
+					$aIINList[436]=511415 ;- US Chase Manhattan Bank USA
+					$aIINList[437]=511416 ;- US Chase Manhattan Bank USA
+					$aIINList[438]=511417 ;- US Chase Manhattan Bank USA
+					$aIINList[439]=511418 ;- US Chase Manhattan Bank USA
+					$aIINList[440]=511419 ;- US Chase Manhattan Bank USA
+					$aIINList[441]=511420 ;- US Chase Manhattan Bank USA
+					$aIINList[442]=511421 ;- US Chase Manhattan Bank USA
+					$aIINList[443]=511422 ;- US Chase Manhattan Bank USA
+					$aIINList[444]=511423 ;- US Chase Manhattan Bank USA
+					$aIINList[445]=511424 ;- US Chase Manhattan Bank USA
+					$aIINList[446]=511425 ;- US Chase Manhattan Bank USA
+					$aIINList[447]=511426 ;- US Chase Manhattan Bank USA
+					$aIINList[448]=511427 ;- US Chase Manhattan Bank USA
+					$aIINList[449]=511428 ;- US Chase Manhattan Bank USA
+					$aIINList[450]=511429 ;- US Chase Manhattan Bank USA
+					$aIINList[451]=511430 ;- US Chase Manhattan Bank USA
+					$aIINList[452]=511431 ;- US Chase Manhattan Bank USA
+					$aIINList[453]=511432 ;- US Chase Manhattan Bank USA
+					$aIINList[454]=511433 ;- US Chase Manhattan Bank USA
+					$aIINList[455]=511434 ;- US Chase Manhattan Bank USA
+					$aIINList[456]=511435 ;- US Chase Manhattan Bank USA
+					$aIINList[457]=511436 ;- US Chase Manhattan Bank USA
+					$aIINList[458]=511437 ;- US Chase Manhattan Bank USA
+					$aIINList[459]=511438 ;- US Chase Manhattan Bank USA
+					$aIINList[460]=511439 ;- US Chase Manhattan Bank USA
+					$aIINList[461]=511440 ;- US Chase Manhattan Bank USA
+					$aIINList[462]=511441 ;- US Chase Manhattan Bank USA
+					$aIINList[463]=511442 ;- US Chase Manhattan Bank USA
+					$aIINList[464]=511443 ;- US Chase Manhattan Bank USA
+					$aIINList[465]=511444 ;- US Chase Manhattan Bank USA
+					$aIINList[466]=511445 ;- US Chase Manhattan Bank USA
+					$aIINList[467]=511446 ;- US Chase Manhattan Bank USA
+					$aIINList[468]=511447 ;- US Chase Manhattan Bank USA
+					$aIINList[469]=511448 ;- US Chase Manhattan Bank USA
+					$aIINList[470]=511449 ;- US Chase Manhattan Bank USA
+					$aIINList[471]=511450 ;- US Chase Manhattan Bank USA
+					$aIINList[472]=511451 ;- US Chase Manhattan Bank USA
+					$aIINList[473]=511452 ;- US Chase Manhattan Bank USA
+					$aIINList[474]=511453 ;- US Chase Manhattan Bank USA
+					$aIINList[475]=511454 ;- US Chase Manhattan Bank USA
+					$aIINList[476]=511455 ;- US Chase Manhattan Bank USA
+					$aIINList[477]=511456 ;- US Chase Manhattan Bank USA
+					$aIINList[478]=511457 ;- US Chase Manhattan Bank USA
+					$aIINList[479]=511458 ;- US Chase Manhattan Bank USA
+					$aIINList[480]=511459 ;- US Chase Manhattan Bank USA
+					$aIINList[481]=511460 ;- US Chase Manhattan Bank USA
+					$aIINList[482]=511461 ;- US Chase Manhattan Bank USA
+					$aIINList[483]=511462 ;- US Chase Manhattan Bank USA
+					$aIINList[484]=511463 ;- US Chase Manhattan Bank USA
+					$aIINList[485]=511464 ;- US Chase Manhattan Bank USA
+					$aIINList[486]=511465 ;- US Chase Manhattan Bank USA
+					$aIINList[487]=511466 ;- US Chase Manhattan Bank USA
+					$aIINList[488]=511467 ;- US Chase Manhattan Bank USA
+					$aIINList[489]=511468 ;- US Chase Manhattan Bank USA
+					$aIINList[490]=511469 ;- US Chase Manhattan Bank USA
+					$aIINList[491]=511470 ;- US Chase Manhattan Bank USA
+					$aIINList[492]=511471 ;- US Chase Manhattan Bank USA
+					$aIINList[493]=511472 ;- US Chase Manhattan Bank USA
+					$aIINList[494]=511473 ;- US Chase Manhattan Bank USA
+					$aIINList[495]=511474 ;- US Chase Manhattan Bank USA
+					$aIINList[496]=511475 ;- US Chase Manhattan Bank USA
+					$aIINList[497]=511476 ;- US Chase Manhattan Bank USA
+					$aIINList[498]=511477 ;- US Chase Manhattan Bank USA
+					$aIINList[499]=511478 ;- US Chase Manhattan Bank USA
+					$aIINList[500]=511479 ;- US Chase Manhattan Bank USA
+					$aIINList[501]=511480 ;- US Chase Manhattan Bank USA
+					$aIINList[502]=511481 ;- US Chase Manhattan Bank USA
+					$aIINList[503]=511482 ;- US Chase Manhattan Bank USA
+					$aIINList[504]=511483 ;- US Chase Manhattan Bank USA
+					$aIINList[505]=511484 ;- US Chase Manhattan Bank USA
+					$aIINList[506]=511485 ;- US Chase Manhattan Bank USA
+					$aIINList[507]=511486 ;- US Chase Manhattan Bank USA
+					$aIINList[508]=511487 ;- US Chase Manhattan Bank USA
+					$aIINList[509]=511488 ;- US Chase Manhattan Bank USA
+					$aIINList[510]=511489 ;- US Chase Manhattan Bank USA
+					$aIINList[511]=511490 ;- US Chase Manhattan Bank USA
+					$aIINList[512]=511491 ;- US Chase Manhattan Bank USA
+					$aIINList[513]=511492 ;- US Chase Manhattan Bank USA
+					$aIINList[514]=511493 ;- US Chase Manhattan Bank USA
+					$aIINList[515]=511494 ;- US Chase Manhattan Bank USA
+					$aIINList[516]=511495 ;- US Chase Manhattan Bank USA
+					$aIINList[517]=511496 ;- US Chase Manhattan Bank USA
+					$aIINList[518]=511497 ;- US Chase Manhattan Bank USA
+					$aIINList[519]=511498 ;- US Chase Manhattan Bank USA
+					$aIINList[520]=511499 ;- US Chase Manhattan Bank USA
+					$aIINList[521]=511500 ;- US Chase Manhattan Bank USA
+					$aIINList[522]=511501 ;- US Chase Manhattan Bank USA
+					$aIINList[523]=511502 ;- US Chase Manhattan Bank USA
+					$aIINList[524]=511503 ;- US Chase Manhattan Bank USA
+					$aIINList[525]=511504 ;- US Chase Manhattan Bank USA
+					$aIINList[526]=511505 ;- US Chase Manhattan Bank USA
+					$aIINList[527]=511506 ;- US Chase Manhattan Bank USA
+					$aIINList[528]=511507 ;- US Chase Manhattan Bank USA
+					$aIINList[529]=511508 ;- US Chase Manhattan Bank USA
+					$aIINList[530]=511509 ;- US Chase Manhattan Bank USA
+					$aIINList[531]=511510 ;- US Chase Manhattan Bank USA
+					$aIINList[532]=511514 ;- US Chase Manhattan Bank USA
+					$aIINList[533]=511519 ;- US Chase Manhattan Bank USA
+					$aIINList[534]=511520 ;- US Chase Manhattan Bank USA
+					$aIINList[535]=511521 ;- US Chase Manhattan Bank USA
+					$aIINList[536]=511522 ;- US Chase Manhattan Bank USA
+					$aIINList[537]=511523 ;- US Chase Manhattan Bank USA
+					$aIINList[538]=511524 ;- US Chase Manhattan Bank USA
+					$aIINList[539]=511528 ;- US Chase Manhattan Bank USA
+					$aIINList[540]=511530 ;- US Chase Manhattan Bank USA
+					$aIINList[541]=511532 ;- US Chase Manhattan Bank USA
+					$aIINList[542]=511533 ;- US Chase Manhattan Bank USA
+					$aIINList[543]=511534 ;- US Chase Manhattan Bank USA
+					$aIINList[544]=511536 ;- US Chase Manhattan Bank USA
+					$aIINList[545]=511538 ;- US Chase Manhattan Bank USA
+					$aIINList[546]=511539 ;- US Chase Manhattan Bank USA
+					$aIINList[547]=511540 ;- US Chase Manhattan Bank USA
+					$aIINList[548]=511543 ;- US Chase Manhattan Bank USA
+					$aIINList[549]=511544 ;- US Chase Manhattan Bank USA
+					$aIINList[550]=511548 ;- US Chase Manhattan Bank USA
+					$aIINList[551]=511553 ;- US Chase Manhattan Bank USA
+					$aIINList[552]=511555 ;- US Chase Manhattan Bank USA
+					$aIINList[553]=511559 ;- US Chase Manhattan Bank USA
+					$aIINList[554]=511562 ;- US Chase Manhattan Bank USA
+					$aIINList[555]=511563 ;- US Chase Manhattan Bank USA
+					$aIINList[556]=511564 ;- US Chase Manhattan Bank USA
+					$aIINList[557]=511566 ;- US Chase Manhattan Bank USA
+					$aIINList[558]=511567 ;- US Chase Manhattan Bank USA
+					$aIINList[559]=511568 ;- US Chase Manhattan Bank USA
+					$aIINList[560]=511572 ;- US Chase Manhattan Bank USA
+					$aIINList[561]=511573 ;- US Chase Manhattan Bank USA
+					$aIINList[562]=511574 ;- US Chase Manhattan Bank USA
+					$aIINList[563]=511578 ;- US Chase Manhattan Bank USA
+					$aIINList[564]=511579 ;- US Chase Manhattan Bank USA
+					$aIINList[565]=511585 ;- US Chase Manhattan Bank USA
+					$aIINList[566]=511586 ;- US Chase Manhattan Bank USA
+					$aIINList[567]=511590 ;- US Chase Manhattan Bank USA
+					$aIINList[568]=511592 ;- US Chase Manhattan Bank USA
+					$aIINList[569]=511593 ;- US Chase Manhattan Bank USA
+					$aIINList[570]=511594 ;- US Chase Manhattan Bank USA
+					$aIINList[571]=511595 ;- US Chase Manhattan Bank USA
+					$aIINList[572]=511600 ;- US Chase Manhattan Bank USA
+					$aIINList[573]=511601 ;- US Chase Manhattan Bank USA
+					$aIINList[574]=511602 ;- US Chase Manhattan Bank USA
+					$aIINList[575]=511603 ;- US Chase Manhattan Bank USA
+					$aIINList[576]=511604 ;- US Chase Manhattan Bank USA
+					$aIINList[577]=511605 ;- US Chase Manhattan Bank USA
+					$aIINList[578]=511607 ;- US Chase Manhattan Bank USA
+					$aIINList[579]=511608 ;- US Chase Manhattan Bank USA
+					$aIINList[580]=511609 ;- US Chase Manhattan Bank USA
+					$aIINList[581]=511610 ;- US Chase Manhattan Bank USA
+					$aIINList[582]=511614 ;- US Chase Manhattan Bank USA
+					$aIINList[583]=511620 ;- US Chase Manhattan Bank USA
+					$aIINList[584]=511622 ;- US Chase Manhattan Bank USA
+					$aIINList[585]=511642 ;- US Chase Manhattan Bank USA
+					$aIINList[586]=511647 ;- US Chase Manhattan Bank USA
+					$aIINList[587]=511650 ;- US Chase Manhattan Bank USA
+					$aIINList[588]=511654 ;- US Chase Manhattan Bank USA
+					$aIINList[589]=511656 ;- US Chase Manhattan Bank USA
+					$aIINList[590]=511661 ;- US Chase Manhattan Bank USA
+					$aIINList[591]=511664 ;- US Chase Manhattan Bank USA
+					$aIINList[592]=511665 ;- US Chase Manhattan Bank USA
+					$aIINList[593]=511667 ;- US Chase Manhattan Bank USA
+					$aIINList[594]=511668 ;- US Chase Manhattan Bank USA
+					$aIINList[595]=511669 ;- US Chase Manhattan Bank USA
+					$aIINList[596]=511671 ;- US Chase Manhattan Bank USA
+					$aIINList[597]=511673 ;- US Chase Manhattan Bank USA
+					$aIINList[598]=511674 ;- US Chase Manhattan Bank USA
+					$aIINList[599]=511676 ;- US Chase Manhattan Bank USA
+					$aIINList[600]=511677 ;- US Chase Manhattan Bank USA
+					$aIINList[601]=511678 ;- US Chase Manhattan Bank USA
+					$aIINList[602]=511679 ;- US Chase Manhattan Bank USA
+					$aIINList[603]=511680 ;- US Chase Manhattan Bank USA
+					$aIINList[604]=511681 ;- US Chase Manhattan Bank USA
+					$aIINList[605]=511682 ;- US Chase Manhattan Bank USA
+					$aIINList[606]=511683 ;- US Chase Manhattan Bank USA
+					$aIINList[607]=511684 ;- US Chase Manhattan Bank USA
+					$aIINList[608]=511685 ;- US Chase Manhattan Bank USA
+					$aIINList[609]=511686 ;- US Chase Manhattan Bank USA
+					$aIINList[610]=511688 ;- US Chase Manhattan Bank USA
+					$aIINList[611]=511689 ;- US Chase Manhattan Bank USA
+					$aIINList[612]=511690 ;- US Chase Manhattan Bank USA
+					$aIINList[613]=511691 ;- US Chase Manhattan Bank USA
+					$aIINList[614]=511692 ;- US Chase Manhattan Bank USA
+					$aIINList[615]=511693 ;- US Chase Manhattan Bank USA
+					$aIINList[616]=511694 ;- US Chase Manhattan Bank USA
+					$aIINList[617]=511695 ;- US Chase Manhattan Bank USA
+					$aIINList[618]=511696 ;- US Chase Manhattan Bank USA
+					$aIINList[619]=511698 ;- US Chase Manhattan Bank USA
+					$aIINList[620]=511699 ;- US Chase Manhattan Bank USA
+					$aIINList[621]=511712 ;- US Chase Manhattan Bank USA
+					$aIINList[622]=511716 ;- US Chase Manhattan Bank USA
+					$aIINList[623]=511721 ;- US Chase Manhattan Bank USA
+					$aIINList[624]=511726 ;- US Chase Manhattan Bank USA
+					$aIINList[625]=511730 ;- US Chase Manhattan Bank USA
+					$aIINList[626]=511732 ;- US Chase Manhattan Bank USA
+					$aIINList[627]=511733 ;- US Chase Manhattan Bank USA
+					$aIINList[628]=511734 ;- US Chase Manhattan Bank USA
+					$aIINList[629]=511740 ;- US Chase Manhattan Bank USA
+					$aIINList[630]=511742 ;- US Chase Manhattan Bank USA
+					$aIINList[631]=511743 ;- US Chase Manhattan Bank USA
+					$aIINList[632]=511744 ;- US Chase Manhattan Bank USA
+					$aIINList[633]=511746 ;- US Chase Manhattan Bank USA
+					$aIINList[634]=511747 ;- US Chase Manhattan Bank USA
+					$aIINList[635]=511748 ;- US Chase Manhattan Bank USA
+					$aIINList[636]=511749 ;- US Chase Manhattan Bank USA
+					$aIINList[637]=511756 ;- US Chase Manhattan Bank USA
+					$aIINList[638]=511760 ;- US Chase Manhattan Bank USA
+					$aIINList[639]=511762 ;- US Chase Manhattan Bank USA
+					$aIINList[640]=511763 ;- US Chase Manhattan Bank USA
+					$aIINList[641]=511765 ;- US Chase Manhattan Bank USA
+					$aIINList[642]=511766 ;- US Chase Manhattan Bank USA
+					$aIINList[643]=511767 ;- US Chase Manhattan Bank USA
+					$aIINList[644]=511770 ;- US Chase Manhattan Bank USA
+					$aIINList[645]=511771 ;- US Chase Manhattan Bank USA
+					$aIINList[646]=511774 ;- US Chase Manhattan Bank USA
+					$aIINList[647]=511775 ;- US Chase Manhattan Bank USA
+					$aIINList[648]=511778 ;- US Chase Manhattan Bank USA
+					$aIINList[649]=511779 ;- US Chase Manhattan Bank USA
+					$aIINList[650]=511780 ;- US Chase Manhattan Bank USA
+					$aIINList[651]=511781 ;- US Chase Manhattan Bank USA
+					$aIINList[652]=511782 ;- US Chase Manhattan Bank USA
+					$aIINList[653]=511783 ;- US Chase Manhattan Bank USA
+					$aIINList[654]=511784 ;- US Chase Manhattan Bank USA
+					$aIINList[655]=511785 ;- US Chase Manhattan Bank USA
+					$aIINList[656]=511788 ;- US Chase Manhattan Bank USA
+					$aIINList[657]=511790 ;- US Chase Manhattan Bank USA
+					$aIINList[658]=511791 ;- US Chase Manhattan Bank USA
+					$aIINList[659]=511793 ;- US Chase Manhattan Bank USA
+					$aIINList[660]=511794 ;- US Chase Manhattan Bank USA
+					$aIINList[661]=511796 ;- US Chase Manhattan Bank USA
+					$aIINList[662]=511799 ;- US Chase Manhattan Bank USA
+					$aIINList[663]=511800 ;- US Chase Manhattan Bank USA
+					$aIINList[664]=511807 ;- US Chase Manhattan Bank USA
+					$aIINList[665]=511808 ;- US Chase Manhattan Bank USA
+					$aIINList[666]=511809 ;- US Chase Manhattan Bank USA
+					$aIINList[667]=511810 ;- US PayPal PayPal Secure Credit Card
+					$aIINList[668]=511812 ;- US Chase Manhattan Bank USA
+					$aIINList[669]=511813 ;- US Chase Manhattan Bank USA
+					$aIINList[670]=511814 ;- US Chase Manhattan Bank USA
+					$aIINList[671]=511815 ;- US Chase Manhattan Bank USA
+					$aIINList[672]=511816 ;- US Chase Manhattan Bank USA
+					$aIINList[673]=511817 ;- US Chase Manhattan Bank USA
+					$aIINList[674]=511818 ;- US Chase Manhattan Bank USA
+					$aIINList[675]=511819 ;- US Chase Manhattan Bank USA
+					$aIINList[676]=511820 ;- US Chase Manhattan Bank USA
+					$aIINList[677]=511821 ;- US Chase Manhattan Bank USA
+					$aIINList[678]=511822 ;- US Chase Manhattan Bank USA
+					$aIINList[679]=511823 ;- US Chase Manhattan Bank USA
+					$aIINList[680]=511824 ;- US Chase Manhattan Bank USA
+					$aIINList[681]=511825 ;- US Chase Manhattan Bank USA
+					$aIINList[682]=511826 ;- US Chase Manhattan Bank USA
+					$aIINList[683]=511827 ;- US Chase Manhattan Bank USA
+					$aIINList[684]=511828 ;- US Chase Manhattan Bank USA
+					$aIINList[685]=511829 ;- US Chase Manhattan Bank USA
+					$aIINList[686]=511830 ;- US Chase Manhattan Bank USA
+					$aIINList[687]=511831 ;- US Chase Manhattan Bank USA
+					$aIINList[688]=511832 ;- US Chase Manhattan Bank USA
+					$aIINList[689]=511833 ;- US Chase Manhattan Bank USA
+					$aIINList[690]=511834 ;- US Chase Manhattan Bank USA
+					$aIINList[691]=511836 ;- US Chase Manhattan Bank USA
+					$aIINList[692]=511837 ;- US Chase Manhattan Bank USA
+					$aIINList[693]=511838 ;- US Chase Manhattan Bank USA
+					$aIINList[694]=511839 ;- US Chase Manhattan Bank USA
+					$aIINList[695]=511840 ;- US Chase Manhattan Bank USA
+					$aIINList[696]=511841 ;- US Chase Manhattan Bank USA
+					$aIINList[697]=511842 ;- US Chase Manhattan Bank USA
+					$aIINList[698]=511843 ;- US Chase Manhattan Bank USA
+					$aIINList[699]=511844 ;- US Chase Manhattan Bank USA
+					$aIINList[700]=511847 ;- US Chase Manhattan Bank USA
+					$aIINList[701]=511848 ;- US Chase Manhattan Bank USA
+					$aIINList[702]=511849 ;- US Chase Manhattan Bank USA
+					$aIINList[703]=511850 ;- US Chase Manhattan Bank USA
+					$aIINList[704]=511851 ;- US Chase Manhattan Bank USA
+					$aIINList[705]=511852 ;- US Chase Manhattan Bank USA
+					$aIINList[706]=511853 ;- US Chase Manhattan Bank USA
+					$aIINList[707]=511856 ;- US Chase Manhattan Bank USA
+					$aIINList[708]=511857 ;- US Chase Manhattan Bank USA
+					$aIINList[709]=511859 ;- US Chase Manhattan Bank USA
+					$aIINList[710]=511860 ;- US Chase Manhattan Bank USA
+					$aIINList[711]=511861 ;- US Chase Manhattan Bank USA
+					$aIINList[712]=511864 ;- US Chase Manhattan Bank USA
+					$aIINList[713]=511865 ;- US Chase Manhattan Bank USA
+					$aIINList[714]=511866 ;- US Chase Manhattan Bank USA
+					$aIINList[715]=511867 ;- US Chase Manhattan Bank USA
+					$aIINList[716]=511869 ;- US Chase Manhattan Bank USA
+					$aIINList[717]=511870 ;- US Chase Manhattan Bank USA
+					$aIINList[718]=511871 ;- US Chase Manhattan Bank USA
+					$aIINList[719]=511872 ;- US Chase Manhattan Bank USA
+					$aIINList[720]=511874 ;- US Chase Manhattan Bank USA
+					$aIINList[721]=511875 ;- US Chase Manhattan Bank USA
+					$aIINList[722]=511876 ;- US Chase Manhattan Bank USA
+					$aIINList[723]=511878 ;- US Chase Manhattan Bank USA
+					$aIINList[724]=511879 ;- US Chase Manhattan Bank USA
+					$aIINList[725]=511880 ;- US Chase Manhattan Bank USA
+					$aIINList[726]=511881 ;- US Chase Manhattan Bank USA
+					$aIINList[727]=511882 ;- US Chase Manhattan Bank USA
+					$aIINList[728]=511885 ;- US Chase Manhattan Bank USA
+					$aIINList[729]=511887 ;- US Chase Manhattan Bank USA
+					$aIINList[730]=511888 ;- US Chase Manhattan Bank USA
+					$aIINList[731]=511889 ;- US Chase Manhattan Bank USA
+					$aIINList[732]=511890 ;- US Chase Manhattan Bank USA
+					$aIINList[733]=511891 ;- US Chase Manhattan Bank USA
+					$aIINList[734]=511892 ;- US Chase Manhattan Bank USA
+					$aIINList[735]=511893 ;- US Chase Manhattan Bank USA
+					$aIINList[736]=511894 ;- US Chase Manhattan Bank USA
+					$aIINList[737]=511895 ;- US Chase Manhattan Bank USA
+					$aIINList[738]=511896 ;- US Chase Manhattan Bank USA
+					$aIINList[739]=511897 ;- US Chase Manhattan Bank USA
+					$aIINList[740]=511898 ;- US Chase Manhattan Bank USA
+					$aIINList[741]=511899 ;- US Chase Manhattan Bank USA
+					$aIINList[742]=511900 ;- US Chase Manhattan Bank USA
+					$aIINList[743]=511901 ;- US Chase Manhattan Bank USA
+					$aIINList[744]=511902 ;- US Chase Manhattan Bank USA
+					$aIINList[745]=511904 ;- US Chase Manhattan Bank USA
+					$aIINList[746]=511910 ;- US Chase Manhattan Bank USA
+					$aIINList[747]=511911 ;- US Chase Manhattan Bank USA
+					$aIINList[748]=511913 ;- US Chase Manhattan Bank USA
+					$aIINList[749]=511916 ;- US Chase Manhattan Bank USA
+					$aIINList[750]=511917 ;- US Chase Manhattan Bank USA
+					$aIINList[751]=511920 ;- US Chase Manhattan Bank USA
+					$aIINList[752]=511921 ;- US Chase Manhattan Bank USA
+					$aIINList[753]=511932 ;- US Chase Manhattan Bank USA
+					$aIINList[754]=511934 ;- US Chase Manhattan Bank USA
+					$aIINList[755]=511937 ;- US Chase Manhattan Bank USA
+					$aIINList[756]=511938 ;- US Chase Manhattan Bank USA
+					$aIINList[757]=511939 ;- US Chase Manhattan Bank USA
+					$aIINList[758]=511942 ;- US Chase Manhattan Bank USA
+					$aIINList[759]=511953 ;- US Chase Manhattan Bank USA
+					$aIINList[760]=511958 ;- US Chase Manhattan Bank USA
+					$aIINList[761]=511964 ;- US Chase Manhattan Bank USA
+					$aIINList[762]=511967 ;- US Chase Manhattan Bank USA
+					$aIINList[763]=511972 ;- US Chase Manhattan Bank USA
+					$aIINList[764]=511974 ;- US Chase Manhattan Bank USA
+					$aIINList[765]=511981 ;- US Chase Manhattan Bank USA
+					$aIINList[766]=511987 ;- US Chase Manhattan Bank USA
+					$aIINList[767]=511988 ;- US Chase Manhattan Bank USA
+					$aIINList[768]=511995 ;- US Chase Manhattan Bank USA
+					$aIINList[769]=511998 ;- US Chase Manhattan Bank USA
+					$aIINList[770]=511999 ;- US Chase Manhattan Bank USA
+					$aIINList[771]=512000 ;- US Western States BankCard Association
+					$aIINList[772]=512005 ;- US Western States BankCard Association
+					$aIINList[773]=512010 ;- US Western States BankCard Association
+					$aIINList[774]=512012 ;- US Chase Manhattan Bank USA
+					$aIINList[775]=512015 ;- US Western States BankCard Association
+					$aIINList[776]=512022 ;- US Western States BankCard Association
+					$aIINList[777]=512023 ;- JO International Card
+					$aIINList[778]=512024 ;- US Western States BankCard Association
+					$aIINList[779]=512105 ;- US Western States BankCard Association
+					$aIINList[780]=512106 ;- US Sears National Bank Citi Sears MasterCard
+					$aIINList[781]=512107 ;- US Sears National Bank Citi Sears MasterCard
+					$aIINList[782]=512108 ;- US Sears National Bank Citi Sears MasterCard
+					$aIINList[783]=512109 ;- CL Corp Banca
+					$aIINList[784]=512110 ;- US Western States BankCard Association
+					$aIINList[785]=512111 ;- US Western States BankCard Association
+					$aIINList[786]=512127 ;- AU BankWest Business Debit MasterCard
+					$aIINList[787]=512136 ;- US Western States BankCard Association
+					$aIINList[788]=512207 ;- US Western States BankCard Association
+					$aIINList[789]=512210 ;- US Western States BankCard Association
+					$aIINList[790]=512211 ;- US Western States BankCard Association
+					$aIINList[791]=512213 ;- US Western States BankCard Association
+					$aIINList[792]=512221 ;- US Western States BankCard Association
+					$aIINList[793]=512240 ;- US Western States BankCard Association
+					$aIINList[794]=512244 ;- US Western States BankCard Association
+					$aIINList[795]=512262 ;- US Western States BankCard Association
+					$aIINList[796]=512265 ;- US Western States BankCard Association
+					$aIINList[797]=512268 ;- US Western States BankCard Association
+					$aIINList[798]=512277 ;- US Western States BankCard Association
+					$aIINList[799]=512278 ;- US Western States BankCard Association
+					$aIINList[800]=512281 ;- US Western States BankCard Association
+					$aIINList[801]=512282 ;- US Western States BankCard Association
+					$aIINList[802]=512283 ;- US Western States BankCard Association
+					$aIINList[803]=512287 ;- US Western States BankCard Association
+					$aIINList[804]=512288 ;- US Western States BankCard Association
+					$aIINList[805]=512289 ;- US Western States BankCard Association
+					$aIINList[806]=512290 ;- US Western States BankCard Association
+					$aIINList[807]=512293 ;- US Western States BankCard Association
+					$aIINList[808]=512295 ;- US Western States BankCard Association
+					$aIINList[809]=512297 ;- US Western States BankCard Association
+					$aIINList[810]=512344 ;- US Western States BankCard Association
+					$aIINList[811]=512356 ;- US Western States BankCard Association
+					$aIINList[812]=512369 ;- US Western States BankCard Association
+					$aIINList[813]=512375 ;- US Western States BankCard Association
+					$aIINList[814]=512387 ;- US Western States BankCard Association
+					$aIINList[815]=512388 ;- US Western States BankCard Association
+					$aIINList[816]=512390 ;- US Western States BankCard Association
+					$aIINList[817]=512462 ;- Lotte Card MasterCard Gold Card
+					$aIINList[818]=512500 ;- US Western States BankCard Association
+					$aIINList[819]=512502 ;- US Western States BankCard Association
+					$aIINList[820]=512503 ;- US Western States BankCard Association
+					$aIINList[821]=512504 ;- US Western States BankCard Association
+					$aIINList[822]=512505 ;- US Western States BankCard Association
+					$aIINList[823]=512506 ;- US Western States BankCard Association
+					$aIINList[824]=512507 ;- US Western States BankCard Association
+					$aIINList[825]=512508 ;- US Western States BankCard Association
+					$aIINList[826]=512509 ;- US Western States BankCard Association
+					$aIINList[827]=512511 ;- US Western States BankCard Association
+					$aIINList[828]=512512 ;- US Western States BankCard Association
+					$aIINList[829]=512513 ;- US Western States BankCard Association
+					$aIINList[830]=512514 ;- US Western States BankCard Association
+					$aIINList[831]=512515 ;- US Western States BankCard Association
+					$aIINList[832]=512516 ;- US Western States BankCard Association
+					$aIINList[833]=512517 ;- US Western States BankCard Association
+					$aIINList[834]=512518 ;- US Western States BankCard Association
+					$aIINList[835]=512519 ;- US Western States BankCard Association
+					$aIINList[836]=512520 ;- US Western States BankCard Association
+					$aIINList[837]=512521 ;- US Western States BankCard Association
+					$aIINList[838]=512522 ;- US Western States BankCard Association
+					$aIINList[839]=512523 ;- US Western States BankCard Association
+					$aIINList[840]=512524 ;- US Western States BankCard Association
+					$aIINList[841]=512525 ;- US Western States BankCard Association
+					$aIINList[842]=512526 ;- US Western States BankCard Association
+					$aIINList[843]=512527 ;- US Western States BankCard Association
+					$aIINList[844]=512528 ;- US Western States BankCard Association
+					$aIINList[845]=512529 ;- US Western States BankCard Association
+					$aIINList[846]=512530 ;- US Western States BankCard Association
+					$aIINList[847]=512531 ;- US Western States BankCard Association
+					$aIINList[848]=512532 ;- US Western States BankCard Association
+					$aIINList[849]=512533 ;- US Western States BankCard Association
+					$aIINList[850]=512534 ;- US Western States BankCard Association
+					$aIINList[851]=512535 ;- US Western States BankCard Association
+					$aIINList[852]=512536 ;- US Western States BankCard Association
+					$aIINList[853]=512537 ;- US Western States BankCard Association
+					$aIINList[854]=512538 ;- US Western States BankCard Association
+					$aIINList[855]=512539 ;- US Western States BankCard Association
+					$aIINList[856]=512540 ;- US Western States BankCard Association
+					$aIINList[857]=512541 ;- US Western States BankCard Association
+					$aIINList[858]=512542 ;- US Western States BankCard Association
+					$aIINList[859]=512543 ;- US Western States BankCard Association
+					$aIINList[860]=512544 ;- US Western States BankCard Association
+					$aIINList[861]=512545 ;- US Western States BankCard Association
+					$aIINList[862]=512546 ;- US Western States BankCard Association
+					$aIINList[863]=512547 ;- US Western States BankCard Association
+					$aIINList[864]=512548 ;- US Western States BankCard Association
+					$aIINList[865]=512549 ;- US Western States BankCard Association
+					$aIINList[866]=512550 ;- US Western States BankCard Association
+					$aIINList[867]=512551 ;- ES Europay 6000
+					$aIINList[868]=512552 ;- ES Europay 6000
+					$aIINList[869]=512553 ;- ES Europay 6000
+					$aIINList[870]=512554 ;- ES Europay 6000
+					$aIINList[871]=512555 ;- ES Europay 6000
+					$aIINList[872]=512568 ;- PL Citi Gold MasterCard Citi Poland
+					$aIINList[873]=512569 ;- UK Lloyds TSB
+					$aIINList[874]=512607 ;- Continental Finance MasterCard
+					$aIINList[875]=512622 ;- IN SBI Tata Card Mastercard Credit Card
+					$aIINList[876]=512687 ;- UK Sainsbury Sainsbury Credit Card
+					$aIINList[877]=513011 ;- FR Europay France
+					$aIINList[878]=513015 ;- FR Europay France
+					$aIINList[879]=513016 ;- FR Europay France
+					$aIINList[880]=513017 ;- FR Europay France
+					$aIINList[881]=513018 ;- FR Europay France
+					$aIINList[882]=513020 ;- FR Europay France
+					$aIINList[883]=513021 ;- FR Europay France
+					$aIINList[884]=513022 ;- FR Europay France
+					$aIINList[885]=513023 ;- FR Europay France
+					$aIINList[886]=513024 ;- FR Europay France
+					$aIINList[887]=513025 ;- FR Europay France
+					$aIINList[888]=513026 ;- FR Europay France
+					$aIINList[889]=513027 ;- FR Europay France
+					$aIINList[890]=513028 ;- FR Europay France
+					$aIINList[891]=513029 ;- FR Europay France
+					$aIINList[892]=513030 ;- FR Europay France
+					$aIINList[893]=513031 ;- FR Europay France
+					$aIINList[894]=513032 ;- FR Europay France
+					$aIINList[895]=513033 ;- FR Europay France
+					$aIINList[896]=513034 ;- FR Europay France
+					$aIINList[897]=513035 ;- FR Europay France
+					$aIINList[898]=513036 ;- FR Europay France
+					$aIINList[899]=513037 ;- FR Europay France
+					$aIINList[900]=513038 ;- FR Europay France
+					$aIINList[901]=513100 ;- FR Europay France
+					$aIINList[902]=513101 ;- FR Europay France Crédit Agricole Gold MasterCard Credit Card
+					$aIINList[903]=513102 ;- FR Europay France
+					$aIINList[904]=513103 ;- FR Europay France
+					$aIINList[905]=513104 ;- FR Europay France
+					$aIINList[906]=513105 ;- FR Europay France
+					$aIINList[907]=513106 ;- FR Europay France
+					$aIINList[908]=513107 ;- FR Europay France
+					$aIINList[909]=513108 ;- FR Europay France
+					$aIINList[910]=513109 ;- FR Europay France
+					$aIINList[911]=513110 ;- FR Europay France
+					$aIINList[912]=513111 ;- FR Europay France
+					$aIINList[913]=513112 ;- FR Europay France
+					$aIINList[914]=513113 ;- FR Europay France
+					$aIINList[915]=513114 ;- FR Europay France
+					$aIINList[916]=513115 ;- FR Europay France
+					$aIINList[917]=513116 ;- FR Europay France
+					$aIINList[918]=513117 ;- FR Europay France
+					$aIINList[919]=513118 ;- FR Europay France
+					$aIINList[920]=513119 ;- FR Europay France
+					$aIINList[921]=513120 ;- FR Europay France
+					$aIINList[922]=513121 ;- FR Europay France
+					$aIINList[923]=513122 ;- FR Europay France
+					$aIINList[924]=513123 ;- FR Europay France
+					$aIINList[925]=513124 ;- FR Europay France
+					$aIINList[926]=513125 ;- FR Europay France
+					$aIINList[927]=513126 ;- FR Europay France
+					$aIINList[928]=513127 ;- FR Europay France
+					$aIINList[929]=513128 ;- FR Europay France
+					$aIINList[930]=513129 ;- FR Europay France
+					$aIINList[931]=513130 ;- FR Europay France
+					$aIINList[932]=513131 ;- FR Europay France
+					$aIINList[933]=513132 ;- FR Europay France
+					$aIINList[934]=513133 ;- FR Europay France
+					$aIINList[935]=513134 ;- FR Europay France
+					$aIINList[936]=513135 ;- FR Europay France
+					$aIINList[937]=513136 ;- FR Europay France
+					$aIINList[938]=513137 ;- FR Europay France
+					$aIINList[939]=513138 ;- FR Europay France
+					$aIINList[940]=513139 ;- FR Europay France
+					$aIINList[941]=513140 ;- FR Europay France
+					$aIINList[942]=513141 ;- FR Europay France Crédit Agricole MasterCard Credit Card
+					$aIINList[943]=513142 ;- FR Europay France
+					$aIINList[944]=513143 ;- FR Europay France Advanzia Bank MasterCard Credit Card
+					$aIINList[945]=513144 ;- FR Europay France Advanzia Bank
+					$aIINList[946]=513145 ;- FR Europay France Advanzia Bank
+					$aIINList[947]=513146 ;- FR Europay France Advanzia Bank
+					$aIINList[948]=513147 ;- FR Europay France Advanzia Bank
+					$aIINList[949]=513148 ;- FR Europay France Advanzia Bank
+					$aIINList[950]=513149 ;- FR Europay France Advanzia Bank
+					$aIINList[951]=513150 ;- FR Europay France Advanzia Bank
+					$aIINList[952]=513151 ;- FR Europay France Advanzia Bank
+					$aIINList[953]=513152 ;- FR Europay France Advanzia Bank
+					$aIINList[954]=513153 ;- FR Europay France Advanzia Bank
+					$aIINList[955]=513154 ;- FR Europay France Advanzia Bank
+					$aIINList[956]=513155 ;- FR Europay France Advanzia Bank
+					$aIINList[957]=513156 ;- FR Europay France Advanzia Bank
+					$aIINList[958]=513157 ;- FR Europay France Advanzia Bank
+					$aIINList[959]=513158 ;- FR Europay France Advanzia Bank
+					$aIINList[960]=513159 ;- FR Europay France Advanzia Bank
+					$aIINList[961]=513160 ;- FR Europay France Advanzia Bank
+					$aIINList[962]=513161 ;- FR Europay France Advanzia Bank
+					$aIINList[963]=513162 ;- FR Europay France Advanzia Bank
+					$aIINList[964]=513163 ;- FR Europay France Advanzia Bank
+					$aIINList[965]=513164 ;- FR Europay France Advanzia Bank
+					$aIINList[966]=513165 ;- FR Europay France Advanzia Bank
+					$aIINList[967]=513166 ;- FR Europay France Advanzia Bank
+					$aIINList[968]=513167 ;- FR Europay France Advanzia Bank
+					$aIINList[969]=513168 ;- FR Europay France Advanzia Bank
+					$aIINList[970]=513169 ;- FR Europay France Advanzia Bank
+					$aIINList[971]=513170 ;- FR Europay France Advanzia Bank
+					$aIINList[972]=513171 ;- FR Europay France Advanzia Bank
+					$aIINList[973]=513172 ;- FR Europay France Advanzia Bank
+					$aIINList[974]=513173 ;- FR Europay France Advanzia Bank
+					$aIINList[975]=513174 ;- FR Europay France Advanzia Bank
+					$aIINList[976]=513175 ;- FR Europay France Advanzia Bank
+					$aIINList[977]=513176 ;- FR Europay France Advanzia Bank
+					$aIINList[978]=513177 ;- FR Europay France Advanzia Bank
+					$aIINList[979]=513178 ;- FR Europay France Advanzia Bank
+					$aIINList[980]=513179 ;- FR Europay France Advanzia Bank
+					$aIINList[981]=513180 ;- FR Europay France Advanzia Bank
+					$aIINList[982]=513181 ;- FR Europay France Advanzia Bank
+					$aIINList[983]=513182 ;- FR Europay France Advanzia Bank
+					$aIINList[984]=513183 ;- FR Europay France Advanzia Bank
+					$aIINList[985]=513184 ;- FR Europay France Advanzia Bank
+					$aIINList[986]=513185 ;- FR Europay France Advanzia Bank
+					$aIINList[987]=513186 ;- FR Europay France Advanzia Bank
+					$aIINList[988]=513187 ;- FR Europay France Advanzia Bank
+					$aIINList[989]=513188 ;- FR Europay France Advanzia Bank
+					$aIINList[990]=513189 ;- FR Europay France Advanzia Bank
+					$aIINList[991]=513190 ;- FR Europay France Advanzia Bank
+					$aIINList[992]=513191 ;- FR Europay France Advanzia Bank
+					$aIINList[993]=513192 ;- FR Europay France Advanzia Bank
+					$aIINList[994]=513193 ;- FR Europay France Advanzia Bank
+					$aIINList[995]=513194 ;- FR Europay France Advanzia Bank
+					$aIINList[996]=513195 ;- FR Europay France Advanzia Bank
+					$aIINList[997]=513196 ;- FR Europay France Advanzia Bank
+					$aIINList[998]=513197 ;- FR Europay France Advanzia Bank
+					$aIINList[999]=513198 ;- FR Europay France Advanzia Bank
+					$aIINList[1000]=513199 ;- FR Europay France Advanzia Bank
+					$aIINList[1001]=513200 ;- FR Europay France
+					$aIINList[1002]=513201 ;- FR Europay France
+					$aIINList[1003]=513202 ;- FR Europay France
+					$aIINList[1004]=513203 ;- FR Europay France
+					$aIINList[1005]=513207 ;- FR Europay France
+					$aIINList[1006]=513208 ;- FR Europay France
+					$aIINList[1007]=513209 ;- FR Europay France
+					$aIINList[1008]=513210 ;- FR Europay France
+					$aIINList[1009]=513211 ;- FR Europay France
+					$aIINList[1010]=513212 ;- FR Europay France
+					$aIINList[1011]=513213 ;- FR Europay France
+					$aIINList[1012]=513214 ;- FR Europay France
+					$aIINList[1013]=513215 ;- FR Europay France
+					$aIINList[1014]=513216 ;- FR Europay France
+					$aIINList[1015]=513217 ;- FR Europay France
+					$aIINList[1016]=513218 ;- FR Europay France
+					$aIINList[1017]=513219 ;- FR Europay France
+					$aIINList[1018]=513220 ;- FR Europay France
+					$aIINList[1019]=513221 ;- FR Europay France
+					$aIINList[1020]=513224 ;- FR Europay France
+					$aIINList[1021]=513225 ;- FR Europay France
+					$aIINList[1022]=513230 ;- FR Europay France
+					$aIINList[1023]=513231 ;- FR Europay France
+					$aIINList[1024]=513232 ;- FR Europay France
+					$aIINList[1025]=513233 ;- FR Europay France
+					$aIINList[1026]=513234 ;- FR Europay France
+					$aIINList[1027]=513235 ;- FR Europay France
+					$aIINList[1028]=513236 ;- FR Europay France
+					$aIINList[1029]=513237 ;- FR Europay France
+					$aIINList[1030]=513238 ;- FR Europay France
+					$aIINList[1031]=513239 ;- FR Europay France
+					$aIINList[1032]=513240 ;- FR Europay France
+					$aIINList[1033]=513241 ;- FR Europay France
+					$aIINList[1034]=513242 ;- FR Europay France
+					$aIINList[1035]=513243 ;- FR Europay France
+					$aIINList[1036]=513244 ;- FR Europay France
+					$aIINList[1037]=513245 ;- FR Europay France
+					$aIINList[1038]=513246 ;- FR Europay France
+					$aIINList[1039]=513247 ;- FR Europay France
+					$aIINList[1040]=513248 ;- FR Europay France
+					$aIINList[1041]=513249 ;- FR Europay France
+					$aIINList[1042]=513250 ;- FR Europay France
+					$aIINList[1043]=513251 ;- FR Europay France
+					$aIINList[1044]=513252 ;- FR Europay France
+					$aIINList[1045]=513253 ;- FR Europay France
+					$aIINList[1046]=513254 ;- FR Europay France
+					$aIINList[1047]=513255 ;- FR Europay France
+					$aIINList[1048]=513256 ;- FR Europay France
+					$aIINList[1049]=513257 ;- FR Europay France
+					$aIINList[1050]=513258 ;- FR Europay France
+					$aIINList[1051]=513261 ;- FR Europay France
+					$aIINList[1052]=513262 ;- FR Europay France
+					$aIINList[1053]=513263 ;- FR Europay France
+					$aIINList[1054]=513264 ;- FR Europay France
+					$aIINList[1055]=513265 ;- FR Europay France
+					$aIINList[1056]=513266 ;- FR Europay France
+					$aIINList[1057]=513267 ;- FR Europay France
+					$aIINList[1058]=513268 ;- FR Europay France
+					$aIINList[1059]=513269 ;- FR Europay France
+					$aIINList[1060]=513270 ;- FR Europay France
+					$aIINList[1061]=513271 ;- FR Europay France
+					$aIINList[1062]=513272 ;- FR Europay France
+					$aIINList[1063]=513273 ;- FR Europay France
+					$aIINList[1064]=513274 ;- FR Europay France
+					$aIINList[1065]=513275 ;- FR Europay France
+					$aIINList[1066]=513276 ;- FR Europay France
+					$aIINList[1067]=513277 ;- FR Europay France
+					$aIINList[1068]=513278 ;- FR Europay France
+					$aIINList[1069]=513279 ;- FR Europay France
+					$aIINList[1070]=513283 ;- FR Europay France
+					$aIINList[1071]=513284 ;- FR Europay France
+					$aIINList[1072]=513285 ;- FR Europay France
+					$aIINList[1073]=513286 ;- FR Europay France
+					$aIINList[1074]=513287 ;- FR Europay France
+					$aIINList[1075]=513288 ;- FR Europay France
+					$aIINList[1076]=513290 ;- FR Europay France
+					$aIINList[1077]=513291 ;- FR Europay France
+					$aIINList[1078]=513292 ;- FR Europay France
+					$aIINList[1079]=513293 ;- FR Europay France
+					$aIINList[1080]=513294 ;- FR Europay France
+					$aIINList[1081]=513296 ;- FR Europay France
+					$aIINList[1082]=513297 ;- FR Europay France
+					$aIINList[1083]=513299 ;- FR Europay France
+					$aIINList[1084]=513300 ;- FR Europay France
+					$aIINList[1085]=513310 ;- FR Europay France
+					$aIINList[1086]=513320 ;- FR Europay France
+					$aIINList[1087]=513350 ;- FR Europay France
+					$aIINList[1088]=513400 ;- FR Europay France
+					$aIINList[1089]=513411 ;- FR Europay France
+					$aIINList[1090]=513412 ;- FR Europay France
+					$aIINList[1091]=513413 ;- FR Europay France
+					$aIINList[1092]=513453 ;- FR BNP Paribas MasterCard Credit Card
+					$aIINList[1093]=513500 ;- FR Europay France
+					$aIINList[1094]=513501 ;- FR Europay France
+					$aIINList[1095]=513502 ;- FR Europay France
+					$aIINList[1096]=513503 ;- FR Europay France
+					$aIINList[1097]=513504 ;- FR Europay France
+					$aIINList[1098]=513505 ;- FR Europay France
+					$aIINList[1099]=513506 ;- FR Europay France
+					$aIINList[1100]=513507 ;- FR Europay France
+					$aIINList[1101]=513508 ;- FR Europay France
+					$aIINList[1102]=513509 ;- FR Europay France
+					$aIINList[1103]=513510 ;- FR Europay France
+					$aIINList[1104]=513511 ;- FR Europay France
+					$aIINList[1105]=513512 ;- FR Europay France
+					$aIINList[1106]=513513 ;- FR Europay France
+					$aIINList[1107]=513514 ;- FR Europay France
+					$aIINList[1108]=513515 ;- FR Europay France
+					$aIINList[1109]=513516 ;- FR Europay France
+					$aIINList[1110]=513517 ;- FR Europay France
+					$aIINList[1111]=513518 ;- FR Europay France
+					$aIINList[1112]=513519 ;- FR Europay France
+					$aIINList[1113]=513520 ;- FR Europay France
+					$aIINList[1114]=513521 ;- FR Europay France
+					$aIINList[1115]=513522 ;- FR Europay France
+					$aIINList[1116]=513523 ;- FR Europay France
+					$aIINList[1117]=513524 ;- FR Europay France
+					$aIINList[1118]=513525 ;- FR Europay France
+					$aIINList[1119]=513526 ;- FR Europay France
+					$aIINList[1120]=513527 ;- FR Europay France
+					$aIINList[1121]=513528 ;- FR Europay France
+					$aIINList[1122]=513529 ;- FR Europay France
+					$aIINList[1123]=513530 ;- FR Europay France
+					$aIINList[1124]=513531 ;- FR Europay France
+					$aIINList[1125]=513532 ;- FR Europay France
+					$aIINList[1126]=513533 ;- FR Europay France
+					$aIINList[1127]=513534 ;- FR Europay France
+					$aIINList[1128]=513536 ;- FR Europay France BRED Banque Populaire Affinity MasterCard Credit Card
+					$aIINList[1129]=513537 ;- FR Europay France
+					$aIINList[1130]=513538 ;- FR Europay France
+					$aIINList[1131]=513539 ;- FR Europay France
+					$aIINList[1132]=513540 ;- FR Europay France
+					$aIINList[1133]=513541 ;- FR Europay France
+					$aIINList[1134]=513542 ;- FR Europay France
+					$aIINList[1135]=513543 ;- FR Europay France
+					$aIINList[1136]=513544 ;- FR Europay France
+					$aIINList[1137]=513545 ;- FR Europay France
+					$aIINList[1138]=513546 ;- FR Europay France
+					$aIINList[1139]=513547 ;- FR Europay France
+					$aIINList[1140]=513548 ;- FR Europay France
+					$aIINList[1141]=513549 ;- FR Europay France
+					$aIINList[1142]=513550 ;- FR Europay France
+					$aIINList[1143]=513551 ;- FR Europay France
+					$aIINList[1144]=513552 ;- FR Europay France
+					$aIINList[1145]=513553 ;- FR Europay France
+					$aIINList[1146]=513554 ;- FR Europay France
+					$aIINList[1147]=513555 ;- FR Europay France
+					$aIINList[1148]=513556 ;- FR Europay France
+					$aIINList[1149]=513557 ;- FR Europay France
+					$aIINList[1150]=513558 ;- FR Europay France
+					$aIINList[1151]=513559 ;- FR Europay France
+					$aIINList[1152]=513560 ;- FR Europay France
+					$aIINList[1153]=513561 ;- FR Europay France
+					$aIINList[1154]=513562 ;- FR Europay France
+					$aIINList[1155]=513563 ;- FR Europay France
+					$aIINList[1156]=513564 ;- FR Europay France
+					$aIINList[1157]=513565 ;- FR Europay France
+					$aIINList[1158]=513566 ;- FR Europay France
+					$aIINList[1159]=513567 ;- FR Europay France
+					$aIINList[1160]=513568 ;- FR Europay France
+					$aIINList[1161]=513569 ;- FR Europay France
+					$aIINList[1162]=513570 ;- FR Europay France
+					$aIINList[1163]=513600 ;- FR Europay France
+					$aIINList[1164]=513601 ;- FR Europay France
+					$aIINList[1165]=513602 ;- FR Europay France
+					$aIINList[1166]=513603 ;- FR Europay France
+					$aIINList[1167]=513604 ;- FR Europay France
+					$aIINList[1168]=513605 ;- FR Europay France
+					$aIINList[1169]=513606 ;- FR Europay France
+					$aIINList[1170]=513607 ;- FR Europay France
+					$aIINList[1171]=513608 ;- FR Europay France
+					$aIINList[1172]=513609 ;- FR Europay France
+					$aIINList[1173]=513610 ;- FR Europay France
+					$aIINList[1174]=513611 ;- FR Europay France
+					$aIINList[1175]=513612 ;- FR Europay France
+					$aIINList[1176]=513613 ;- FR Europay France
+					$aIINList[1177]=513614 ;- FR Europay France
+					$aIINList[1178]=513615 ;- FR Europay France
+					$aIINList[1179]=513616 ;- FR Europay France
+					$aIINList[1180]=513617 ;- FR Europay France
+					$aIINList[1181]=513618 ;- FR Europay France
+					$aIINList[1182]=513619 ;- FR Europay France
+					$aIINList[1183]=513620 ;- FR Europay France
+					$aIINList[1184]=513621 ;- FR Europay France
+					$aIINList[1185]=513622 ;- FR Europay France
+					$aIINList[1186]=513623 ;- FR Europay France
+					$aIINList[1187]=513624 ;- FR Europay France ;- Barclays Bank PLC MasterCard Platinum
+					$aIINList[1188]=513624 ;- FR Europay France
+					$aIINList[1189]=513625 ;- FR Europay France
+					$aIINList[1190]=513626 ;- FR Europay France
+					$aIINList[1191]=513627 ;- FR Europay France
+					$aIINList[1192]=513628 ;- FR Europay France
+					$aIINList[1193]=513629 ;- FR Europay France
+					$aIINList[1194]=513630 ;- FR Europay France
+					$aIINList[1195]=513631 ;- FR Europay France
+					$aIINList[1196]=513632 ;- FR Europay France
+					$aIINList[1197]=513633 ;- FR Europay France
+					$aIINList[1198]=513634 ;- FR Europay France
+					$aIINList[1199]=513635 ;- FR Europay France
+					$aIINList[1200]=513636 ;- FR Europay France
+					$aIINList[1201]=513637 ;- FR Europay France
+					$aIINList[1202]=513638 ;- FR Europay France
+					$aIINList[1203]=513639 ;- FR Europay France
+					$aIINList[1204]=513640 ;- FR Europay France
+					$aIINList[1205]=513641 ;- FR Europay France
+					$aIINList[1206]=513642 ;- FR Europay France
+					$aIINList[1207]=513643 ;- FR Europay France
+					$aIINList[1208]=513644 ;- FR Europay France
+					$aIINList[1209]=513645 ;- FR Europay France
+					$aIINList[1210]=513646 ;- FR Europay France
+					$aIINList[1211]=513647 ;- FR Europay France
+					$aIINList[1212]=513648 ;- FR Europay France
+					$aIINList[1213]=513649 ;- FR Europay France
+					$aIINList[1214]=513650 ;- FR Europay France
+					$aIINList[1215]=513651 ;- FR Europay France
+					$aIINList[1216]=513652 ;- FR Europay France
+					$aIINList[1217]=513653 ;- FR Europay France
+					$aIINList[1218]=513655 ;- FR Europay France
+					$aIINList[1219]=513662 ;- FR Europay France
+					$aIINList[1220]=513663 ;- FR Europay France
+					$aIINList[1221]=513664 ;- FR Europay France
+					$aIINList[1222]=513665 ;- FR Europay France
+					$aIINList[1223]=513666 ;- FR Europay France
+					$aIINList[1224]=513667 ;- FR Europay France
+					$aIINList[1225]=513668 ;- FR Europay France
+					$aIINList[1226]=513669 ;- FR Europay France
+					$aIINList[1227]=513670 ;- FR Europay France
+					$aIINList[1228]=513698 ;- FR Europay France
+					$aIINList[1229]=513699 ;- FR Europay France
+					$aIINList[1230]=513691 ;- RU Russian Standard Bank, Russia MasterCard Unembossed (Instant Issue)
+					$aIINList[1231]=513700 ;- FR Europay France
+					$aIINList[1232]=513704 ;- FR Europay France
+					$aIINList[1233]=513707 ;- FR Europay France
+					$aIINList[1234]=513708 ;- FR Europay France
+					$aIINList[1235]=513710 ;- FR Europay France
+					$aIINList[1236]=513711 ;- FR Europay France
+					$aIINList[1237]=513712 ;- FR Europay France
+					$aIINList[1238]=513713 ;- FR Europay France
+					$aIINList[1239]=513714 ;- FR Europay France
+					$aIINList[1240]=513800 ;- FR Europay France
+					$aIINList[1241]=513801 ;- FR Europay France
+					$aIINList[1242]=513802 ;- FR Europay France
+					$aIINList[1243]=513803 ;- FR Europay France
+					$aIINList[1244]=513804 ;- FR Europay France
+					$aIINList[1245]=513805 ;- FR Europay France
+					$aIINList[1246]=513806 ;- FR Europay France
+					$aIINList[1247]=513807 ;- FR Europay France
+					$aIINList[1248]=513808 ;- FR Europay France
+					$aIINList[1249]=513809 ;- FR Europay France
+					$aIINList[1250]=513810 ;- FR Europay France
+					$aIINList[1251]=513811 ;- FR Europay France
+					$aIINList[1252]=513812 ;- FR Europay France
+					$aIINList[1253]=513813 ;- FR Europay France
+					$aIINList[1254]=513814 ;- FR Europay France
+					$aIINList[1255]=513815 ;- FR Europay France
+					$aIINList[1256]=513816 ;- FR Europay France
+					$aIINList[1257]=513817 ;- FR Europay France
+					$aIINList[1258]=513818 ;- FR Europay France
+					$aIINList[1259]=513819 ;- FR Europay France
+					$aIINList[1260]=513820 ;- FR Europay France
+					$aIINList[1261]=513821 ;- FR Europay France
+					$aIINList[1262]=513822 ;- FR Europay France
+					$aIINList[1263]=513823 ;- FR Europay France
+					$aIINList[1264]=513824 ;- FR Europay France
+					$aIINList[1265]=513825 ;- FR Europay France
+					$aIINList[1266]=513826 ;- FR Europay France
+					$aIINList[1267]=513827 ;- FR Europay France
+					$aIINList[1268]=513828 ;- FR Europay France
+					$aIINList[1269]=513829 ;- FR Europay France
+					$aIINList[1270]=513830 ;- FR Europay France
+					$aIINList[1271]=513831 ;- FR Europay France
+					$aIINList[1272]=513832 ;- FR Europay France
+					$aIINList[1273]=513833 ;- FR Europay France
+					$aIINList[1274]=513834 ;- FR Europay France
+					$aIINList[1275]=513835 ;- FR Europay France
+					$aIINList[1276]=513900 ;- FR Europay France
+					$aIINList[1277]=514011 ;- US Integra Bank
+					$aIINList[1278]=514012 ;- US CitiBank South Dakota
+					$aIINList[1279]=514013 ;- US Elgin First Credit Union
+					$aIINList[1280]=514015 ;- US Infibank
+					$aIINList[1281]=514016 ;- US Miramar First Credit Union
+					$aIINList[1282]=514017 ;- US Franklin Templeton Bank and Trust
+					$aIINList[1283]=514019 ;- US Wells Fargo
+					$aIINList[1284]=514020 ;- US Wells Fargo
+					$aIINList[1285]=514021 ;- US Juniper Bank Now known as Barclays Bank PLC
+					$aIINList[1286]=514022 ;- US Navy Federal Credit Union
+					$aIINList[1287]=514045 ;- AU Aussie Mastercard Credit Card
+					$aIINList[1288]=514102 ;- US Park National Bank
+					$aIINList[1289]=514108 ;- US Paradigm Bank Texas
+					$aIINList[1290]=514250 ;- AU Commonwealth Securities Debit Mastercard
+					$aIINList[1291]=514253 ;- US EDS Employees First Credit Union
+					$aIINList[1292]=514700 ;- Mascoma Savings Bank Business Mastercard Debit Card
+					$aIINList[1293]=514876 ;- KR CitiBank Platinum MasterCard
+					$aIINList[1294]=514889 ;- US Juniper Bank Now known as Barclays Bank PLC
+					$aIINList[1295]=514923 ;- US Chase Manhattan Bank USA
+					$aIINList[1296]=515462 ;- US Bankcorp Bank "Vanilla" Sams Club Gift PrePaid
+					$aIINList[1297]=515854 ;- RU Citibank Citigold Debit Card
+					$aIINList[1298]=517644 ;- US Miramar First Credit Union
+					$aIINList[1299]=516010 ;- PL Polbank EFG MasterCard Credit Card
+					$aIINList[1300]=516029 ;- CitiFinancial Shell/CitiFinancial Europe MasterCard
+					$aIINList[1301]=516300 ;- AU Westpac Banking Corporation
+					$aIINList[1302]=516310 ;- AU Westpac Banking Corporation
+					$aIINList[1303]=516315 ;- AU Westpac Banking Corporation
+					$aIINList[1304]=516331 ;- RU Svyaznoy Bank
+					$aIINList[1305]=516335 ;- AU Westpac Banking Corporation
+					$aIINList[1306]=516321 ;- AU Westpac Banking Corporation Australia Mastercard Credit Card
+					$aIINList[1307]=516337 ;- AU Westpac Banking Corporation Australia Platinum MasterCard
+					$aIINList[1308]=516361 ;- AU Westpac Banking Corporation Debit MasterCard
+					$aIINList[1309]=516366 ;- AU Westpac Banking Corporation Debit MasterCard
+					$aIINList[1310]=516693 ;- USA FISERV SOLUTIONS CREDIT Mastercard
+					$aIINList[1311]=517651 ;- US 5-Star Bank
+					$aIINList[1312]=517652 ;- HDFC Bank MasterCard Gold Credit Card
+					$aIINList[1313]=517669 ;- UK HSBC (formerly Household) MasterCard Credit Card
+					$aIINList[1314]=517805 ;- US Jpmorgan Chase Bank MasterCard Credit Card
+					$aIINList[1315]=517869 ;- US Union Bank[disambiguation needed] MasterCard Debit Card
+					$aIINList[1316]=518126 ;- Utility Warehouse MasterCard PrePaid Card
+					$aIINList[1317]=518127 ;- CA President's Choice Financial MasterCard Credit Card
+					$aIINList[1318]=518142 ;- UK MBNA MasterCard[citation needed]
+					$aIINList[1319]=518145 ;- UK Royal Bank of Scotland Tesco Bank Classic MasterCard Credit Card
+					$aIINList[1320]=518152 ;- UK  Tesco Bank ClubCard MasterCard Credit Card
+					$aIINList[1321]=518175 ;- UK MBNA British Midland Airways MasterCard
+					$aIINList[1322]=518346 ;- DE Unicredit Bank AG Unicredit Bank AG Mastercard
+					$aIINList[1323]=518390 ;- US Citibank Sunoco or Conoco Mastercard
+					$aIINList[1324]=518542 ;- HK HSBC Premier Banking World Mastercard
+					$aIINList[1325]=518676 ;- IE AvantCard AvantCard (formerly MBNA Ireland) Platinum MasterCard
+					$aIINList[1326]=518652 ;- EUR GBR EDINBURGH ROYAL BANK OF SCOTLAND PLC.
+					$aIINList[1327]=518791 ;- Lloyds TSB MasterCard CreditCard
+					$aIINList[1328]=518868 ;- AU Bendigo Bank bendigoblue MasterCard Debit
+					$aIINList[1329]=518996 ;- Russia UniCredit Bank,
+					$aIINList[1330]=519000 ;- CA Bank of Montreal
+					$aIINList[1331]=519113 ;- CA Bank of Montreal
+					$aIINList[1332]=519120 ;- CA Bank of Montreal
+					$aIINList[1333]=519121 ;- CA Bank of Montreal
+					$aIINList[1334]=519122 ;- CA Bank of Montreal
+					$aIINList[1335]=519123 ;- CA Bank of Montreal
+					$aIINList[1336]=519129 ;- CA Bank of Montreal
+					$aIINList[1337]=519133 ;- CA Bank of Montreal
+					$aIINList[1338]=519140 ;- CA Bank of Montreal
+					$aIINList[1339]=519141 ;- CA Bank of Montreal
+					$aIINList[1340]=519142 ;- CA Bank of Montreal
+					$aIINList[1341]=519143 ;- CA Bank of Montreal
+					$aIINList[1342]=519154 ;- CA Bank of Montreal
+					$aIINList[1343]=519161 ;- CA Bank of Montreal
+					$aIINList[1344]=519162 ;- CA Bank of Montreal
+					$aIINList[1345]=519163 ;- NZ Kiwibank
+					$aIINList[1346]=519173 ;- CA Bank of Montreal
+					$aIINList[1347]=519180 ;- CA Bank of Montreal
+					$aIINList[1348]=519181 ;- CA Bank of Montreal
+					$aIINList[1349]=519182 ;- CA Bank of Montreal
+					$aIINList[1350]=519183 ;- CA Bank of Montreal
+					$aIINList[1351]=519200 ;- CA Bank of Montreal
+					$aIINList[1352]=519201 ;- CA Bank of Montreal
+					$aIINList[1353]=519202 ;- CA Bank of Montreal
+					$aIINList[1354]=519220 ;- CA Bank of Montreal
+					$aIINList[1355]=519221 ;- CA Bank of Montreal
+					$aIINList[1356]=519222 ;- CA Bank of Montreal
+					$aIINList[1357]=519223 ;- CA Bank of Montreal
+					$aIINList[1358]=519240 ;- CA Bank of Montreal
+					$aIINList[1359]=519241 ;- CA Bank of Montreal
+					$aIINList[1360]=519242 ;- CA Bank of Montreal
+					$aIINList[1361]=519244 ;- AU Bendigo Bank Business Blue Debit Mastercard
+					$aIINList[1362]=519259 ;- CA Bank of Montreal
+					$aIINList[1363]=519269 ;- CA Bank of Montreal USD Mastercard
+					$aIINList[1364]=519281 ;- CA Bank of Montreal
+					$aIINList[1365]=519283 ;- CA Bank of Montreal
+					$aIINList[1366]=519290 ;- CA Bank of Montreal
+					$aIINList[1367]=519293 ;- CA Bank of Montreal
+					$aIINList[1368]=519294 ;- CA Bank of Montreal
+					$aIINList[1369]=519322 ;- CA Bank of Montreal
+					$aIINList[1370]=519323 ;- CA Bank of Montreal
+					$aIINList[1371]=519332 ;- CA Bank of Montreal
+					$aIINList[1372]=519342 ;- CA Bank of Montreal
+					$aIINList[1373]=519371 ;- CA Bank of Montreal
+					$aIINList[1374]=519373 ;- CA Bank of Montreal
+					$aIINList[1375]=519381 ;- CA Bank of Montreal
+					$aIINList[1376]=519383 ;- CA Bank of Montreal
+					$aIINList[1377]=519390 ;- CA Bank of Montreal
+					$aIINList[1378]=519391 ;- CA Bank of Montreal
+					$aIINList[1379]=519393 ;- CA Bank of Montreal
+					$aIINList[1380]=519394 ;- CA Bank of Montreal
+					$aIINList[1381]=519395 ;- CA Bank of Montreal
+					$aIINList[1382]=519398 ;- CA HSBC Canada
+					$aIINList[1383]=519400 ;- CA Bank of Montreal
+					$aIINList[1384]=519403 ;- CA Bank of Montreal
+					$aIINList[1385]=519409 ;- CA Bank of Montreal
+					$aIINList[1386]=519430 ;- CA Bank of Montreal
+					$aIINList[1387]=519431 ;- CA Bank of Montreal
+					$aIINList[1388]=519433 ;- CA Bank of Montreal
+					$aIINList[1389]=519434 ;- CA Bank of Montreal
+					$aIINList[1390]=519443 ;- CA Bank of Montreal
+					$aIINList[1391]=519463 ;- PH Banco De Oro MasterCard Debit Card
+					$aIINList[1392]=519490 ;- CA Bank of Montreal
+					$aIINList[1393]=519491 ;- CA Bank of Montreal
+					$aIINList[1394]=519493 ;- CA Bank of Montreal
+					$aIINList[1395]=519494 ;- CA Bank of Montreal
+					$aIINList[1396]=519520 ;- Altair Prepaid Cards
+					$aIINList[1397]=519525 ;- Contis Group & EZPay Prepaid Cards
+					$aIINList[1398]=519540 ;- CA Bank of Montreal
+					$aIINList[1399]=519541 ;- CA Bank of Montreal
+					$aIINList[1400]=519542 ;- CA Bank of Montreal
+					$aIINList[1401]=519543 ;- CA Bank of Montreal
+					$aIINList[1402]=519544 ;- CA Bank of Montreal
+					$aIINList[1403]=513264 ;- Crédit Mutuel MasterCard Credit Card (France)
+					$aIINList[1404]=520108 ;- China CITIC Bank Master Card (China)
+					$aIINList[1405]=520169 ;- BestBuy MasterCard by Bank of Communications/HSBC (China)
+					$aIINList[1406]=520301 ;- credit/debit cards issued by Valovis Commercial Bank under various brands (Germany)
+					$aIINList[1407]=520306 ;- Citibank/Lufthansa Miles & More MasterCard Credit Card (Russia)
+					$aIINList[1408]=520641 ;- Tesco Bank Bonus Mastercard(UK)
+					$aIINList[1409]=520988 ;- Garanti Bank Shop&Miles MasterCard Credit Card
+					$aIINList[1410]=520991 ;- Nordea Gold (Sweden)
+					$aIINList[1411]=521324 ;- Tinkoff Credit Systems (Russia), MasterCard Platinum Credit Card
+					$aIINList[1412]=521326 ;- SMP Bank (Russia), MasterCard Platinum Transaero Card
+					$aIINList[1413]=521402 ;- Mastercard
+					$aIINList[1414]=521679 ;- US Bank National Association, Giftcard
+					$aIINList[1415]=521584 ;- Finansbank Prepaid Card
+					$aIINList[1416]=521804 ;- Tesco Bank Business Mastercard (UK)
+					$aIINList[1417]=521853 ;- PayPal MasterCard
+					$aIINList[1418]=521893 ;- Go Mastercard, GE Capital Finance T/A GE Money (AUS)
+					$aIINList[1419]=521899 ;- Bank of Communications, HSBC Co-Branded Credit Card (China)
+					$aIINList[1420]=522182 ;- People's Trust (US)
+					$aIINList[1421]=522222 ;- United Overseas Bank MasterCard Platinum Malaysia
+					$aIINList[1422]=522223 ;- Avangard Bank, Russia
+					$aIINList[1423]=522276 ;- Chase Manhattan Bank MasterCard Credit Card
+					$aIINList[1424]=523748 ;- Commonwealth Bank of Australia Prepaid Travel Money Mastercard
+					$aIINList[1425]=523911 ;- Affinity Bank
+					$aIINList[1426]=523912 ;- Affinity Bank
+					$aIINList[1427]=523916 ;- Citibank Platinum Credit Card (Argentina)
+					$aIINList[1428]=523935 ;- Citibank (Malaysia)
+					$aIINList[1429]=523951 ;- ICICI Bank MasterCard Credit Card (India)
+					$aIINList[1430]=524040 ;- OCBC Bank BEST-OCBC MasterCard Credit Card (Singapore)
+					$aIINList[1431]=524100 ;- Citibank Korea
+					$aIINList[1432]=524805 ;- Orico MasterCard Credit Card (Japan)
+					$aIINList[1433]=525241 ;- Saison Card International, Japan ;- United Airlines MileagePlus
+					$aIINList[1434]=525303 ;- Halifax/Bank of Scotland (UK)
+					$aIINList[1435]=525405 ;- VÚB Banka (Banca Intesa group) MasterCard original+ Credit card (Slovakia)
+					$aIINList[1436]=525678 ;- Banamex Debit card
+					$aIINList[1437]=525896 ;- Mastercard Husky (Canada) [Husky/Mohawk MasterCard]
+					$aIINList[1438]=525995 ;- Canadian Tire Bank Gas Advantage MasterCard
+					$aIINList[1439]=526219 ;- Citibank MasterCard American Airlines AAdvantage Debit Card
+					$aIINList[1440]=526224 ;- Citibank MasterCard Debit Card
+					$aIINList[1441]=526226 ;- Citibank MasterCard Card
+					$aIINList[1442]=526418 ;- Vietcombank ;- Vietnam ;- MasterCard Debit Card
+					$aIINList[1443]=526468 ;- SBI Cards credit card (India)
+					$aIINList[1444]=526471 ;- POSBank MasterCard Debit/ATM Card (Singapore)
+					$aIINList[1445]=526495 ;- Bank of India MasterCard Debit/ATM Card
+					$aIINList[1446]=526702 ;- Yes Bank Mastercard Silver Debit Card (India)
+					$aIINList[1447]=526722 ;- Standard Bank South Africa MasterCard Credit Card (Gift Card)
+					$aIINList[1448]=526737 ;- Security Bank Cash Card (Philippines)
+					$aIINList[1449]=526781 ;- VÚB Banka (Banca Intesa group) ;- MasterCard unembossed Credit card (Slovakia)
+					$aIINList[1450]=526790 ;- Asia Commercial Bank Vietnam ;- MasterCard Debit Card
+					$aIINList[1451]=527434 ;- Caixanova NovaXove / EVO Banco (Spain) Mastecard Debit Card
+					$aIINList[1452]=527455 ;- Rubycard Pre-Paid Mastercard (Ireland) issued by Newcastle Building Society
+					$aIINList[1453]=527456 ;- WireCard Bank (Germany)
+					$aIINList[1454]=527890 ;- Go National (National Bank of Greece)
+					$aIINList[1455]=528013 ;- Bankwest Australia MasterCard Debit Card
+					$aIINList[1456]=528038 ;- ING Bank N.V. Amsterdam
+					$aIINList[1457]=528061 ;- BMO Bank of Montreal MasterCard Prepaid Travel
+					$aIINList[1458]=528093 ;- Banesto (Spain) Mastercard Prepaid Sevilla Futbol Club
+					$aIINList[1459]=528229 ;- Nexpay prepaid card
+					$aIINList[1460]=528683 ;- The Governor And Company Of The Bank Of Scotland EUR GBR DUNFERMLINE
+					$aIINList[1461]=528689 ;- Santander UK Zero MasterCard Credit Card UK
+					$aIINList[1462]=528919 ;- CIMB Niaga Platinum MasterCard Credit Card (Indonesia)
+					$aIINList[1463]=528945 ;- HDFC Bank MasterCard credit card (India)
+					$aIINList[1464]=529020 ;- Woolworths Everyday Money MasterCard credit card
+					$aIINList[1465]=529480 ;- Santander [CONTIGO] Credit Card (Spain)
+					$aIINList[1466]=529512 ;- Prepaid Debit MasterCard issued by Australia and New Zealand Banking Group
+					$aIINList[1467]=529523 ;- Woolworths Everyday Money Prepaid MasterCard (issued by ANZ Banking Group)
+					$aIINList[1468]=529565 ;- Spark Prepaid MasterCard issued by Prepaid Financial Services Limited (UK)
+					$aIINList[1469]=529580 ;- (Italy) Kalixa Prepaid MasterCard (Vincento Payment Solutions)
+					$aIINList[1470]=529930 ;- Marks & Spencer Money MasterCard Credit Card
+					$aIINList[1471]=529932 ;- Asda branded MasterCard Credit Card (UK)
+					$aIINList[1472]=529962 ;- Prepaid MasterCards issued by DCBANK. (MuchMusic)
+					$aIINList[1473]=529964 ;- CardOneBanking Mastercard Debit
+					$aIINList[1474]=529965 ;- pre paid debit cards
+					$aIINList[1475]=529966 ;- pre paid debit cards
+					$aIINList[1476]=530111 ;- Citibank
+					$aIINList[1477]=530127 ;- BARCLAYS BANK PLC. EUR GBR NORTHAMPTON
+					$aIINList[1478]=530343 ;- Net1 Virtual Card Prepaid
+					$aIINList[1479]=530442 ;- Choice Bank Limited (Payoneer)
+					$aIINList[1480]=530695 ;- Bancolombia Prepaid MasterCard Credit Card (E-prepago)
+					$aIINList[1481]=530785 ;- Sears MasterCard ;- Chase Card Service Canada
+					$aIINList[1482]=530786 ;- Sears Voyage MasterCard ;- Chase Card Services Canada
+					$aIINList[1483]=530831 ;- Orange Cash Prepaid MasterCard, issued by Orange and Barclays with PayPass
+					$aIINList[1484]=531045 ;- MBNA Virgin Money
+					$aIINList[1485]=531106 ;- PayPal (USA) Prepaid MasterCard ;- NetSpend / The Bancorp Bank
+					$aIINList[1486]=531108 ;- MetaBank (USA) Prepaid Debit Mastercard
+					$aIINList[1487]=531207 ;- Uralsib Bank (Russia), MasterCard World ;- Aeroflot bonus
+					$aIINList[1488]=531289 ;- AEON View Suica MasterCard Credit Card (Japan)
+					$aIINList[1489]=531306 ;- Newcastle Building SocietyPrepaid Mastercard. Various trade names e.g. Moneybookers.com, Monarch Airlines
+					$aIINList[1490]=531307 ;- Newcastle Building Society Prepaid Mastercard. Various trade names e.g. FairFX
+					$aIINList[1491]=531355 ;- National Bank MasterCard Credit Card
+					$aIINList[1492]=531445 ;- Payoneer MasterCard Debit Card
+					$aIINList[1493]=531496 ;- Air New Zealand OneSmart Prepaid Debit Card (issued by the Bank of New Zealand
+					$aIINList[1494]=532450 ;- China Construction Bank Credit Card
+					$aIINList[1495]=532561 ;- HSBC Bank USA Premier Debit Mastercard with PayPass
+					$aIINList[1496]=532700 ;- RBS Premium MasterCard Debit Card
+					$aIINList[1497]=532737 ;- BankWest Platinum Debit MasterCard
+					$aIINList[1498]=532902 ;- Wachovia Bank MasterCard Credit Card
+					$aIINList[1499]=533157 ;- RNKO, Euroset Kukuruza Bonus (Russia) Mastercard Unembossed, Instant Issue
+					$aIINList[1500]=533200 ;- Metro Bank PLC UK retail Mastercard credit card
+					$aIINList[1501]=533206 ;- Avangard Bank MasterCard Credit Card
+					$aIINList[1502]=533248 ;- Comerica Bank Mastercard prepaid
+					$aIINList[1503]=533389 ;- New Zealand Credit Unions Debit Card
+					$aIINList[1504]=533505 ;- Citibank Japan (Titanium) credit card
+					$aIINList[1505]=533506 ;- Citibank Japan (World) credit card
+					$aIINList[1506]=533619 ;- CIMB Niaga Syariah Gold MasterCard Credit Card
+					$aIINList[1507]=533838 ;- [CBA] Prepaid Gift card as MasterCard
+					$aIINList[1508]=533846 ;- Kalixa Prepaid Mastercard UK Kalixa Prepaid MasterCard (Vincento Payment Solutions)
+					$aIINList[1509]=533875 ;- Paypal Italy MasterCard Prepaid
+					$aIINList[1510]=533896 ;- Paypal Access Card (UK)
+					$aIINList[1511]=533908 ;- Bank Zachodni WBK Mastercard Premium Prepaid PayPass (Electronic) (Poland)
+					$aIINList[1512]=533936 ;- Kalixa Prepaid Mastercard DE Kalixa Prepaid MasterCard (Vincento Payment Solutions)
+					$aIINList[1513]=534248 ;- Best Buy
+					$aIINList[1514]=535316 ;- Commonwealth Bank Standard MasterCard Credit Card
+					$aIINList[1515]=535317 ;- Commonwealth Bank Credit Card
+					$aIINList[1516]=535318 ;- Commonwealth Bank Gold MasterCard Credit Card
+					$aIINList[1517]=536386 ;- Barclaycard World Mastercard (UK)
+					$aIINList[1518]=536409 ;- Russian Agricultural Bank (Rosselhozbank) MasterCard Country Debit Card
+					$aIINList[1519]=537004 ;- RNKO, Russia, Svyaznoy MasterCard Unembossed Card Instant Issue
+					$aIINList[1520]=537196 ;- Commonwealth Bank Debit Card
+					$aIINList[1521]=537881 ;- CUETS Financial
+					$aIINList[1522]=538720 ;- BC Mastercard issued by Woori Bank
+					$aIINList[1523]=538803 ;- BC Mastercard issued by Industrial Bank of Korea
+					$aIINList[1524]=538806 ;- BC Mastercard issued by Kookmin Bank
+					$aIINList[1525]=538811 ;- BC Mastercard issued by Nonghyup Central Bank
+					$aIINList[1526]=538812 ;- BC Mastercard issued by Nonghyup Local Banks
+					$aIINList[1527]=538820 ;- BC Mastercard
+					$aIINList[1528]=538823 ;- BC Mastercard issued by SC First Bank
+					$aIINList[1529]=538825 ;- BC Mastercard issued by Hana Bank
+					$aIINList[1530]=538827 ;- BC Mastercard issued by Citibank in Korea
+					$aIINList[1531]=538878 ;- BC Mastercard issued by Shinhan Bank
+					$aIINList[1532]=539028 ;- Citibank Mastercard (Brazil)
+					$aIINList[1533]=539655 ;- AT&T Universal MasterCard Credit Card, now part of Citibank
+					$aIINList[1534]=539673 ;- Avangard Bank, MasterCard World Signia Card
+					$aIINList[1535]=539738 ;- FNB Bank, MasterCard Debit Prepaid (USA)
+					$aIINList[1536]=539941 ;- Zenith Bank (Nigeria) MasterCard Debit Card
+					$aIINList[1537]=539923 ;- First Bank of Nigeria MasterCard Debit Card
+					$aIINList[1538]=540002 ;- DBS (Esso co-branded) Singapore
+					$aIINList[1539]=540012 ;- OCBC Singapore Titanium
+					$aIINList[1540]=540034 ;- Standard Chartered Bank Titanium Credit Card (HK)
+					$aIINList[1541]=540041 ;- HSBC Bank Gold Malaysia
+					$aIINList[1542]=540141 ;- BANESCO Classic Mastercard card (Venezuela).
+					$aIINList[1543]=540168 ;- Chase MasterCard Credit Card
+					$aIINList[1544]=540187 ;- Advanzia Bank (LU)
+					$aIINList[1545]=540204 ;- Citibank Hong Kong MasterCard Credit Card
+					$aIINList[1546]=540205 ;- Citibank Taiwan MasterCard Credit Card
+					$aIINList[1547]=540207 ;- BNZ (Bank of New Zealand) Global Plus MasterCard Credit Card
+					$aIINList[1548]=540221 ;- ANZ Bank New Zealand ANZ MasterCard Credit Card
+					$aIINList[1549]=540223 ;- Westpac New Zealand MasterCard Credit Card
+					$aIINList[1550]=540256 ;- Citibank Malaysia MasterCard Credit Card
+					$aIINList[1551]=540410 ;- Brown Thomas MasterCard (Issued by AIB)
+					$aIINList[1552]=540450 ;- Advanced Payment Solutions (APS)
+					$aIINList[1553]=540451 ;- Advanced Payment Solutions (APS)
+					$aIINList[1554]=540482 ;- Bankwest Zero Gold Mastercard Credit Card (AU)
+					$aIINList[1555]=540758 ;- MBNA Bank UK bmi Blue Mastercard
+					$aIINList[1556]=540801 ;- Household Bank USA MasterCard Credit Card
+					$aIINList[1557]=540805 ;- Citibank Taiwan
+					$aIINList[1558]=540806 ;- Hang Seng Bank Credit Card
+					$aIINList[1559]=540838 ;- BOC Great Wall Credit Card (CN)
+					$aIINList[1560]=540877 ;- Bank of China Platinum MasterCard Credit Card (SG)
+					$aIINList[1561]=541010 ;- Raiffeisen Zentralbank
+					$aIINList[1562]=541065 ;- Citibank MC
+					$aIINList[1563]=541142 ;- CIBC MasterCard (Canadian Imperial Bank of Commerce) formerly Citi MasterCard Canada
+					$aIINList[1564]=541206 ;- USAA
+					$aIINList[1565]=541256 ;- SEB Kort AB, Choice Club credit card (SE)
+					$aIINList[1566]=541256 ;- SEB Kort AB, SJ Prio credit card (SE)
+					$aIINList[1567]=541277 ;- Nordea Finance/Valutakortet Valuta MasterCard credit card (SE)
+					$aIINList[1568]=541330 ;- Mastercard test BIN for NIV, TIP certifiction (not production cards)
+					$aIINList[1569]=541383 ;- OCBC Singapore Worldcard
+					$aIINList[1570]=541590 ;- Royal Bank Mastercard
+					$aIINList[1571]=541592 ;- Neteller (UK) Mastercard debit card
+					$aIINList[1572]=541597 ;- Slovenská sporiteľna Mastercard debit card
+					$aIINList[1573]=541606 ;- WestJet/RBC Royal Bank of Canada MasterCard (CA)
+					$aIINList[1574]=541647 ;- Asda branded MasterCard Credit Card (UK), discontinued 2012
+					$aIINList[1575]=541657 ;- (eBay MasterCard) via Providian
+					$aIINList[1576]=538670 ;- R. RAPHAEL & SONS PLC | DEBIT | Prepaid | Italy
+					$aIINList[1577]=542418 ;- Citibank Platinum Select
+					$aIINList[1578]=542432 ;- Fifth Third Bank MasterCard Debit Card
+					$aIINList[1579]=542505 ;- RBS Gold Mastercard Credit Card (formerly ABN Amro Bank) (IN)
+					$aIINList[1580]=542523 ;- Allied Irish Banks MasterCard Credit Card (IE)
+					$aIINList[1581]=542542 ;- GE Money Bank Mastercard debit card (SE)
+					$aIINList[1582]=542542 ;- GE Money Bank Mastercard credit card (SE)
+					$aIINList[1583]=542598 ;- Bank of Ireland Post Office Platinum Card (UK)
+					$aIINList[1584]=543034 ;- Stockmann Department Store Exclusive Mastercard, issued by Nordea (FI)
+					$aIINList[1585]=543077 ;- Handelsbanken Business Mastercard (SE)
+					$aIINList[1586]=543122 ;- HSBC issued Mastercard (HK)
+					$aIINList[1587]=543250 ;- Bank of New Zealand MasterCard Credit Card
+					$aIINList[1588]=543256 ;- National Bank of Bahrain, Mastercard Giftcard
+					$aIINList[1589]=543267 ;- Bank of Ireland MasterCard Credit Card
+					$aIINList[1590]=543328 ;- HSBC Credit USA
+					$aIINList[1591]=543429 ;- Halifax 'One' Mastercard
+					$aIINList[1592]=543458 ;- HSBC UK Premier Credit Card
+					$aIINList[1593]=543460 ;- HSBC Mastercard Credit Card (UK)
+					$aIINList[1594]=543478 ;- National Irish Bank Mastercard
+					$aIINList[1595]=543479 ;- National Irish Bank Gold Mastercard
+					$aIINList[1596]=543482 ;- RBS Mastercard Credit Card
+					$aIINList[1597]=543556 ;- NatWest Mastercard Charge Card
+					$aIINList[1598]=543568 ;- Bankwest Lite Mastercard Credit Card
+					$aIINList[1599]=543678 ;- Westpac New Zealand Mastercard Gold Credit Card
+					$aIINList[1600]=543696 ;- Itau Mastercard Credit Card
+					$aIINList[1601]=543699 ;- NatWest MasterCard Gold Credit Card
+					$aIINList[1602]=543778 ;- MasterCard Credit Card ;- issued by Zagrebačka banka, Croatia (UniCredit Group)
+					$aIINList[1603]=543793 ;- St George Bank Credit Card (AU)
+					$aIINList[1604]=533997 ;- ATB Financial
+					$aIINList[1605]=544014 ;- Citibank Gold Credit Card (Argentina)
+					$aIINList[1606]=544047 ;- Shazam (USA)
+					$aIINList[1607]=544156 ;- Allied Irish Banks Gold MasterCard Credit Card
+					$aIINList[1608]=544258 ;- BRE Bank (MultiBank) Mastercard Aquarius PayPass Credit Card (Black) (PL)
+					$aIINList[1609]=544291 ;- Kiwibank Go Fly MasterCard Standard (NZ)
+					$aIINList[1610]=544434 ;- Wizard Clear Advantage MasterCard (AU)
+					$aIINList[1611]=544440 ;- Valovis Bank, Prepaid MasterCard Debit(DE)
+					$aIINList[1612]=544448 ;- Boeing Employee Credit Union Debit
+					$aIINList[1613]=544602 ;- People's United Bank MasterMoney Debit Card
+					$aIINList[1614]=544637 ;- Coles Myer Mastercard Credit Card (AU)
+					$aIINList[1615]=544748 ;- Chase SLATE MasterCard Credit Card
+					$aIINList[1616]=544758 ;- HSBC Philippines Mastercard Credit Card (PH)
+					$aIINList[1617]=544842 ;- MasterCard, USA
+					$aIINList[1618]=544856 ;- GE Retail Bank Prepaid (USA)
+					$aIINList[1619]=544917 ;- Citizens Bank (Personal Checking) Debit
+					$aIINList[1620]=544927 ;- Keybank, Electron Mastercard Debit
+					$aIINList[1621]=545045 ;- Danske Bank Intercard MasterCard debit card (SE)
+					$aIINList[1622]=545114 ;- SEB KORT Danmark Credit Card
+					$aIINList[1623]=545139 ;- Nordea Bank Danmark Credit Card
+					$aIINList[1624]=545157 ;- Masterbank (Russia), MasterCard World Signia
+					$aIINList[1625]=545229 ;- Bank of East Asia Hong Kong
+					$aIINList[1626]=545250 ;- Maestro (debit card) BZWBK Poland
+					$aIINList[1627]=545460 ;- Natwest Student Mastercard (UK)
+					$aIINList[1628]=545511 ;- Masterbank (Russia) MasterCard Gold Debit Card
+					$aIINList[1629]=545578 ;- Halifax MasterCard (UK)
+					$aIINList[1630]=545709 ;- Commercial bank Privatbank
+					$aIINList[1631]=545955 ;- Mascoma Savings Bank Mastercard Consumer Debit Card
+					$aIINList[1632]=546097 ;- Luma MasterCard Credit Card by Capital One (UK)
+					$aIINList[1633]=546259 ;- The Governor And Company Of The Bank Of Ireland EUR IRL DUBLIN 2
+					$aIINList[1634]=546286 ;- Dexia banka Slovensko,a.s.; MasterCard Red with PayPass technology
+					$aIINList[1635]=546405 ;- MidCountry Bank Debit Card (US)
+					$aIINList[1636]=546540 ;- Suntrust Bank Mastercard Credit/Debit
+					$aIINList[1637]=546528 ;- USAA Federal Savings Bank Master Card Credit/Debit Card
+					$aIINList[1638]=546638 ;- Barclaycard US Airways Premier Word Credit Card
+					$aIINList[1639]=546604 ;- First USA Banke, N.A. Master Card
+					$aIINList[1640]=546616 ;- Wells Fargo Bank
+					$aIINList[1641]=546632 ;- Fidelity 529 College Rewards (FIA Card Services)
+					$aIINList[1642]=546641 ;- HSBC GM MasterCard Credit Card
+					$aIINList[1643]=546680 ;- HSBC GM MasterCard Credit Card
+					$aIINList[1644]=546827 ;- ANZ Mastercard
+					$aIINList[1645]=547046 ;- Santander Uni-k Credit Card (MX)
+					$aIINList[1646]=547343 ;- ANZ Business MasterCard (NZ)
+					$aIINList[1647]=547347 ;- HSBC Commercial Card (UK in £)
+					$aIINList[1648]=547356 ;- RBS Royal Bank of Scotland
+					$aIINList[1649]=547367 ;- NatWest (RBS)
+					$aIINList[1650]=547372 ;- Swedbank, Estonia, MasterCard Business Card
+					$aIINList[1651]=548009 ;- Fifth Third Bank
+					$aIINList[1652]=548045 ;- BANCO BRADESCO S.A. (BR)
+					$aIINList[1653]=548280 ;- Prepaid Card(card level), Master card(card brand), Debit(card type), peoples trust company (CA)
+					$aIINList[1654]=548616 ;- DZ Bank / BBBank (DE)
+					$aIINList[1655]=548652 ;- Banco de Chile Master Card Credit Card
+					$aIINList[1656]=548653 ;- Banco de Chile Master Card Credit Card RUA
+					$aIINList[1657]=548673 ;- Alfa-Bank/Aeroflot-bonus, M-Video bonus debit Card (RU)
+					$aIINList[1658]=548674 ;- Alfa-Bank Credit Card (RU)
+					$aIINList[1659]=548696 ;- DZ-Bank / Volksbank and Raiffeisenbank (DE)
+					$aIINList[1660]=548805 ;- Hatton National Bank, Sri Lanka RUA
+					$aIINList[1661]=548901 ;- Banco Santander MasterCard debit card (ES)
+					$aIINList[1662]=548912 ;- Banco Santander MasterCard debit card (ES)
+					$aIINList[1663]=548913 ;- Open Bank S.A.(Santander Group) MasterCard debit (ES)
+					$aIINList[1664]=548955 ;- HOUSEHOLD BANK (NEVADA), N.A, (Orchard Bank M/C, HSBC Card Services) RUA
+					$aIINList[1665]=548960 ;- Industrial and Commercial Bank of China (ICBC) Peony American Express Gold Card China
+					$aIINList[1666]=548961 ;- Industrial and Commercial Bank of China (ICBC) Peony American Express Gold Card China
+					$aIINList[1667]=548962 ;- Industrial and Commercial Bank of China (ICBC) Peony American Express Gold Card China
+					$aIINList[1668]=548963 ;- Industrial and Commercial Bank of China (ICBC) Peony American Express Gold Card China
+					$aIINList[1669]=548964 ;- Industrial and Commercial Bank of China (ICBC) Peony American Express Gold Card China
+					$aIINList[1670]=548965 ;- Industrial and Commercial Bank of China (ICBC) Peony American Express Gold Card China
+					$aIINList[1671]=548966 ;- Industrial and Commercial Bank of China (ICBC) Peony American Express Gold Card China
+					$aIINList[1672]=548967 ;- Industrial and Commercial Bank of China (ICBC) Peony American Express Gold Card China
+					$aIINList[1673]=548968 ;- Industrial and Commercial Bank of China (ICBC) Peony American Express Gold Card China
+					$aIINList[1674]=548969 ;- Industrial and Commercial Bank of China (ICBC) Peony American Express Gold Card China
+					$aIINList[1675]=549035 ;- MBNA American Bank [Now part of Bank of America]
+					$aIINList[1676]=549099 ;- MBNA American Bank [Now part of Bank of America]
+					$aIINList[1677]=549104 ;- Chase Manhattan Bank USA, N.A.
+					$aIINList[1678]=549110 ;- HSBC Bank Nevada, N.A. issued Household Bank Platinum Mastercard
+					$aIINList[1679]=549113 ;- Citibank MC
+					$aIINList[1680]=549123 ;- USAA Federal Savings Bank Platinum
+					$aIINList[1681]=549191 ;- MBNA Canada Mastercard
+					$aIINList[1682]=549198 ;- MBNA Canada Mastercard (CA)
+					$aIINList[1683]=549409 ;- HSBC Bank Nevada, NA Premier World Mastercard (credit card)
+					$aIINList[1684]=549471 ;- Qantas Woolworths Everyday Mastercard (issued by HSBC)
+					$aIINList[1685]=549945 ;- Union Plus serviced by Capital One ;- formerly HSBC
+					$aIINList[1686]=550018 ;- MasterCard Credit Card issued in Switzerland by Viseca Card Service SA
+					$aIINList[1687]=550619 ;- "Skycard" MasterCard Credit Card issued in UK in association with Barclaycard
+					$aIINList[1688]=550800 ;- Finserv
+					$aIINList[1689]=550988 ;- County National Bank Debit Card issued in South Central Michigan, USA
+					$aIINList[1690]=551128 ;- ITS Bank/SHAZAM (Interbank Network) Mastercard USA unclear if Debit or Credit
+					$aIINList[1691]=551167 ;- ITS Bank/SHAZAM (Interbank Network) Mastercard USA unclear if Debit or Credit
+					$aIINList[1692]=551445 ;- Cambridge Trust Company in Massachusetts, USA
+					$aIINList[1693]=551915 ;- Orange County's Credit Union Debit Master Card
+					$aIINList[1694]=552004 ;- Citibank (HK)
+					$aIINList[1695]=552016 ;- Bank of China International MasterCard Platinum (HK)
+					$aIINList[1696]=552033 ;- Commonwealth Bank Platinum Awards MasterCard Credit Card
+					$aIINList[1697]=552038 ;- POSB (DBS Bank) everyday Platinum MasterCard Credit Card
+					$aIINList[1698]=552060 ;- Citibank Mastercard Credit Card (AU)
+					$aIINList[1699]=552068 ;- Royal Bank of Scotland | RBS
+					$aIINList[1700]=552083 ;- Standard Chartered (HK)
+					$aIINList[1701]=552093 ;- Citibank Mastercard Platinum Credit Card (IN)
+					$aIINList[1702]=552157 ;- Lloyds TSB Platinum Mastercard
+					$aIINList[1703]=552188 ;- Tesco Bank Finest Platinum Mastercard (UK)
+					$aIINList[1704]=552213 ;- NatWest Platinum Mastercard
+					$aIINList[1705]=552396 ;- MBNA Smart Cash World MasterCard (CA)(MBNA is a division of The Toronto-Dominion Bank)
+					$aIINList[1706]=552313 ;- USAA World Mastercard
+					$aIINList[1707]=552350 ;- Commonwealth Bank Diamond Awards MasterCard Credit Card
+					$aIINList[1708]=552415 ;- Citibank (HK)
+					$aIINList[1709]=552724 ;- Danske Bank MasterCard Direkt debit card (SE)
+					$aIINList[1710]=553412 ;- Hooroo Pty Ltd/GE Capital Virtual Credit Card
+					$aIINList[1711]=553421 ;- Bank of Scotland Mastercard
+					$aIINList[1712]=553823 ;- MIT Federal Credit Union Debit Mastercard
+					$aIINList[1713]=553877 ;- Star Processing PrePaid Mastercard
+					$aIINList[1714]=553985 ;- First National Bank in Edinburg (US)
+					$aIINList[1715]=554219 ;- CitiBank China Rewards (US Dollars Card)
+					$aIINList[1716]=554346 ;- Kookmin Bank Mastercard "Free Pass" Debit Card
+					$aIINList[1717]=554386 ;- VTB24 Mastercard Credit Card (RU)
+					$aIINList[1718]=554390 ;- Banco Santanader MasterCard Credit Card
+					$aIINList[1719]=554393 ;- VTB24 Mastercard Credit Card (RU)
+					$aIINList[1720]=554544 ;- Bank of Ireland (IE)
+					$aIINList[1721]=554564 ;- Onyxcard39
+					$aIINList[1722]=554567 ;- BC Card
+					$aIINList[1723]=554619 ;- Citibank Mastercard Silver Credit Card (IN)
+					$aIINList[1724]=554641 ;- Euro Kartensysteme Eurocard und Eurocheque gmbh
+					$aIINList[1725]=554704 ;- Maybank Singapore Worldcard
+					$aIINList[1726]=554827 ;- POSBank MasterCard Debit Card (SG)
+					$aIINList[1727]=555003 ;- Westpac Banking Corporation Mastercard (AU)
+					$aIINList[1728]=555005 ;- Commonwealth Bank of Australia Corporate Mastercard (AU)
+					$aIINList[1729]=555045 ;- Citibank International Plc, Mastercard (UK)
+					$aIINList[1730]=556951 ;- NatWest Bank Mastercard (UK)
+					$aIINList[1731]=557071 ;- MinBank MasterCard Debit Card (RU)
+					$aIINList[1732]=557098 ;- Aqua Card Mastercard (UK)
+					$aIINList[1733]=557100 ;- UkrSibBank (UA) Part of BNP Paribas Group
+					$aIINList[1734]=557101 ;- UkrSibBank (UA) Part of BNP Paribas Group
+					$aIINList[1735]=557199 ;- MB Financial Bank (US)
+					$aIINList[1736]=557300 ;- Metro Bank (UK) MasterCard Debit Card
+					$aIINList[1737]=557360 ;- Metro Bank Mastercard
+					$aIINList[1738]=557370 ;- CUSO Ireland Mastercard ;- Credit Union Card
+					$aIINList[1739]=557505 ;- Bank Handlowy Mastercard Electronic Pay Pass (Karta Miejska) Debit Card (PL)
+					$aIINList[1740]=557510 ;- BRE Bank (MultiBank) Mastercard Aquarius PayPass Debit Card (PL)
+					$aIINList[1741]=557513 ;- BRE Bank (MultiBank) Mastercard PayPass Debit Card (PL)
+					$aIINList[1742]=557552 ;- Ally Bank Platinum Debit Card
+					$aIINList[1743]=557615 ;- Bremer Bank Debit Card
+					$aIINList[1744]=557753 ;- Bank of the Philippine Islands Express Cash Mastercard Electronic Card (Philippines)
+					$aIINList[1745]=557890 ;- Česká spořitelna, a.s. (CZ)
+					$aIINList[1746]=557843 ;- "Goldfish" MasterCard Credit Card issued in UK by Morgan Stanley
+					$aIINList[1747]=557892 ;- MasterCard Credit Card issued in Nordea Denmark
+					$aIINList[1748]=557905 ;- Santander Mexico Debit Card
+					$aIINList[1749]=557907 ;- Santander Mexico Debit Card
+					$aIINList[1750]=557975 ;- payzone worldwide money Pre-paid Mastercard (UK/IE) (issued by Banque Invik SA, Luxembourg)
+					$aIINList[1751]=558108 ;- Citizens Bank (Business Checking) Debit
+					$aIINList[1752]=558158 ;- PayPal (USA) Debit MasterCard BusinessCard, The Bancorp Bank
+					$aIINList[1753]=558250 ;- Chase Business ink MasterCard
+					$aIINList[1754]=558346 ;- Bank of Montreal Mastercard
+					$aIINList[1755]=558424 ;- PrivatBank MasterCard "Corporate" (UA)
+					$aIINList[1756]=558818 ;- HDFC Bank MasterCard Credit Card "Business Platinum" India
+					$aIINList[1757]=558846 ;- FIA
+					$aIINList[1758]=559139 ;- Citibank China Premiermiles (US Dollars Card)
+					$aIINList[1759]=559318 ;- Aeon Hong Kong Ferrari World Master Card
+					$aIINList[1760]=516390 ;- Westpac Australia Classic MasterCard
+					$aIINList[1761]=516391 ;- Westpac Australia Classic MasterCard
+					$aIINList[1762]=516392 ;- Westpac Australia Classic MasterCard
+					$aIINList[1763]=516393 ;- Westpac Australia Classic MasterCard
+					$aIINList[1764]=516394 ;- Westpac Australia Classic MasterCard
+					$aIINList[1765]=516395 ;- Westpac Australia Classic MasterCard
+					$aIINList[1766]=516396 ;- Westpac Australia Classic MasterCard
+					$aIINList[1767]=516397 ;- Westpac Australia Classic MasterCard
+					$aIINList[1768]=516398 ;- Westpac Australia Classic MasterCard
+					$aIINList[1769]=516399 ;- Westpac Australia Classic MasterCard
+					$aIINList[1770]=545461 ;- Natwest Student Mastercard (UK)
+					$aIINList[1771]=545462 ;- Natwest Student Mastercard (UK)
+					$aIINList[1772]=545463 ;- Natwest Student Mastercard (UK)
+					$aIINList[1773]=545464 ;- Natwest Student Mastercard (UK)
+					$aIINList[1774]=545465 ;- Natwest Student Mastercard (UK)
+					$aIINList[1775]=545466 ;- Natwest Student Mastercard (UK)
+					$aIINList[1776]=545467 ;- Natwest Student Mastercard (UK)
+					$aIINList[1777]=545468 ;- Natwest Student Mastercard (UK)
+					$aIINList[1778]=545469 ;- Natwest Student Mastercard (UK)
+				Case 4
+					Local $aIINList[101]
+					$aIINList[0]=5108 ;- INGDirect	Electric Orange Debit Card
+					$aIINList[1]=5122 ;- First Gulf Bank
+					$aIINList[2]=5130 ;- Banque Postale (France)
+					$aIINList[3]=5131 ;- Crédit Agricole
+					$aIINList[4]=5134 ;- HSBC -Credit Card
+					$aIINList[5]=5135 ;- BRED Banque Populaire MasterCard Credit Card
+					$aIINList[6]=5141 ;- Banco Popular North America Mastercard Debit Card
+					$aIINList[7]=5148 ;- US Airways Dividend Miles Platinum MasterCard
+					$aIINList[8]=5149 ;- MetaBank MasterCard FSA debit card (issued on behalf of third-party administrators)
+					$aIINList[9]=5151 ;- OboPay Prepaid Debit Card Issued By First Premier
+					$aIINList[10]=5155 ;- Orchard Bank issued by HSBC
+					$aIINList[11]=5156 ;- BestBuy MasterCard issued by HSBC
+					$aIINList[12]=5176 ;- China Minsheng Bank MasterCard Credit Card
+					$aIINList[13]=5177 ;- BANAMEX Debit Card
+					$aIINList[14]=5179 ;- Bank Atlantic Mastercard Debit Card
+					$aIINList[15]=5182 ;- Banco Nacional de Costa Rica Servibanca Debit Card
+					$aIINList[16]=5185 ;- HONGKONG AND SHANGHAI BANKING CORPORATION, LTD., THE MasterCard (HK)
+					$aIINList[17]=5187 ;- China Merchants Bank MasterCard Credit Card
+					$aIINList[18]=5200 ;- MBNA Quantum MasterCard Credit Card
+					$aIINList[19]=5206 ;- Caixa Geral de Depotios (CGD) (Portugal) (Caixa Pro Master Card)
+					$aIINList[20]=5217 ;- Commonwealth Bank of Australia Debit MasterCard
+					$aIINList[21]=5211 ;- Privatbank (UA)
+					$aIINList[22]=5221 ;- MasterCard Credit Cards in South Africa
+					$aIINList[23]=5228 ;- Presidents Choice MasterCard Credit Card
+					$aIINList[24]=5232 ;- Sparkasse Germany MasterCard Credit Card
+					$aIINList[25]=5234 ;- Lufthansa Miles & More MasterCard Credit Card
+					$aIINList[26]=5236 ;- AirBank MasterCard Debit Card
+					$aIINList[27]=5243 ;- Hudson's Bay Company MasterCard Credit Card (Canada)
+					$aIINList[28]=5255 ;- Mastercard CartaSi (Italy)
+					$aIINList[29]=5256 ;- Sparda-Bank MasterCard Charge Card (Germany)
+					$aIINList[30]=5258 ;- Mastercard National Bank of Canada (Canada)
+					$aIINList[31]=5259 ;- Canadian Tire Bank Cash Advantage Platinum MasterCard
+					$aIINList[32]=5262 ;- Citibank MasterCard Debit Card
+					$aIINList[33]=5264 ;- Bank Negara Indonesia MasterCard Debit Card
+					$aIINList[34]=5268 ;- Landesbank Berlin (Germany) MasterCard Credit Card
+					$aIINList[35]=5268 ;- CitiBank Platinum Enrich (Canada) MasterCard Credit Card
+					$aIINList[36]=5275 ;- Danske Bank (Finland) MasterCard Debit Card
+					$aIINList[37]=5286 ;- Santander Cards
+					$aIINList[38]=5286 ;- ABSA (Amalgamated Banks of South Africa) MasterCard Credit Card
+					$aIINList[39]=5286 ;- Virgin Money South Africa (Virtual Bank; Operates partially on ABSA's system)
+					$aIINList[40]=5287 ;- Washington Mutual Bank Debit card
+					$aIINList[41]=5289 ;- ANZ (Previously RBS and ABN AMRO) Switch Platinum MasterCard Credit Card (Singapore)
+					$aIINList[42]=5300 ;- Bay Bank.
+					$aIINList[43]=5301 ;- BarclayCard Mastercards.
+					$aIINList[44]=5303 ;- BAC San José (Costa Rica) Debit card
+					$aIINList[45]=5310 ;- Lufthansa Miles & More MasterCard Credit Card Frequent Traveler
+					$aIINList[46]=5316 ;- CUETS Financial Canada MasterCard Credit Card
+					$aIINList[47]=5317 ;- CUETS Financial Canada Global Payment MasterCard
+					$aIINList[48]=5322 ;- Washington Mutual Business Debit card
+					$aIINList[49]=5326 ;- Isracard MasterCard Credit Card (IL)
+					$aIINList[50]=5327 ;- Dexia banka Slovensko, a.s.; MasterCard credit PayPass
+					$aIINList[51]=5329 ;- MBNA Preferred MasterCard Credit Card
+					$aIINList[52]=5396 ;- Saks Fifth Avenue World Elite MasterCard issued by HSBC
+					$aIINList[53]=5399 ;- ICICI Bank MasterCard debit Card
+					$aIINList[54]=5401 ;- Bank of America (formerly MBNA) MasterCard Gold Credit Card
+					$aIINList[55]=5403 ;- Citibank MasterCard Credit Card ("Virtual Card" number)
+					$aIINList[56]=5404 ;- Lloyds TSB Bank MasterCard Credit Card
+					$aIINList[57]=5406 ;- Bancolombia MasterCard Credit Card (CO)
+					$aIINList[58]=5407 ;- HSBC Bank GM Card
+					$aIINList[59]=5409 ;- HSBC Bank, Union Bank of California Pay Pass debit card
+					$aIINList[60]=5412 ;- HSBC Malaysia issued Mastercard
+					$aIINList[61]=5416 ;- Washington Mutual (formerly Providian) Platinum MasterCard Credit Card
+					$aIINList[62]=5417 ;- Chase Bank
+					$aIINList[63]=5420 ;- MasterCard issued by USAA, Mastercard issued by John Lewis (Partnership Card)
+					$aIINList[64]=5424 ;- Citibank MasterCard Credit Card (Dividend, Diamond and others)
+					$aIINList[65]=5425 ;- Barclaycard MasterCard Credit Card (DE)
+					$aIINList[66]=5426 ;- Alberta Treasury Branch
+					$aIINList[67]=5430 ;- ANZ Bank MasterCard
+					$aIINList[68]=5430 ;- Stockmann Department Store Mastercard, issued by Nordea (FI)
+					$aIINList[69]=5434 ;- MasterCard credit cards from UK and Irish banks
+					$aIINList[70]=5438 ;- USAA Federal Savings Bank
+					$aIINList[71]=5440 ;- Mastercard from MBF Malaysia
+					$aIINList[72]=5442 ;- HSBC Mastercard Credit Card (SG)
+					$aIINList[73]=5443 ;- HSBC MasterCard Debit Card with PayPass (US)
+					$aIINList[74]=5444 ;- Bangkok Bank (TH)
+					$aIINList[75]=5444 ;- BHW MasterCard Charge Card (DE)
+					$aIINList[76]=5446 ;- Canadian Tire MasterCard Credit Card
+					$aIINList[77]=5451 ;- NatWest Mastercard Credit Card
+					$aIINList[78]=5452 ;- MBNA Canada Mastercard
+					$aIINList[79]=5455 ;- BancorpSouth Mastercard MasterMoney Debit Card
+					$aIINList[80]=5457 ;- Capital One Canada Branch
+					$aIINList[81]=5457 ;- Dexia banka Slovensko, a.s.; Mastercard Gold with PayPass technology
+					$aIINList[82]=5458 ;- USAA Credit Card
+					$aIINList[83]=5459 ;- Harris Bank Debit Card
+					$aIINList[84]=5460 ;- Berliner Bank (Germany),Mint MasterCard Credit Card and Capital One UK
+					$aIINList[85]=5466 ;- Citibank, MBNA & Chase World MasterCard Credit Cards,
+					$aIINList[86]=5469 ;- Sberbank of Russia
+					$aIINList[87]=5471 ;- Davivienda MasterCard Credit Card (CO)
+					$aIINList[88]=5474 ;- Wells Fargo Bank BusinessLine credit card (US)
+					$aIINList[89]=5483 ;- HypoVereinsbank (DE)
+					$aIINList[90]=5490 ;- MBNA & Chase Platinum MasterCard Credit Cards
+					$aIINList[91]=5491 ;- AT&T Universal MasterCard Credit Card, now part of Citibank, also MBNA MasterCard Credit Cards
+					$aIINList[92]=5520 ;- DBS POSB Everyday Platinum Mastercard (Singapore) / Bank of Scotland Private Banking Platinum MasterCard / RBS World Mastercard
+					$aIINList[93]=5521 ;- BC Platinum Mastercard
+					$aIINList[94]=5522 ;- NatWest Platinum Mastercard
+					$aIINList[95]=5524 ;- BMO Bank Of Montreal World Elite MasterCard (CA)
+					$aIINList[96]=5528 ;- Diner's Club
+					$aIINList[97]=5533 ;- Standard Chartered (HK)
+					$aIINList[98]=5588 ;- Citibank MasterCard Credit Card "Business"
+					$aIINList[99]=5049	;- US	CitiBank	Sears Card
+					$aIINList[100]=5077	;- US		Maestro EBT Card
+			EndSwitch
+		Case 6 ;Discover
+			Switch $Length
+				Case 6
+					Local $aIINList[4]
+					$aIINList[0]=601131 ;- Walmart Discover Card Credit Card
+					$aIINList[1]=601136 ;- Sam's Discover Card Credit Card
+					$aIINList[2]=601137 ;- Sam's Business Discover Card Credit Card
+					$aIINList[3]=601138 ;- HSBC - Direct Rewards Credit Card
+				Case 4
+					Local $aIINList[3]
+					$aIINList[0]=6011 ;- Discover Card Credit Card
+					$aIINList[1]=6541 ;- KR	BC Card	BC Global[1]
+					$aIINList[2]=6556 ;- KR	BC Card	BC Global[1]
+			EndSwitch
 	EndSwitch
 
 	Return $aIINList
-EndFunc
-
-
-;#######################################################################
-;		ConfidenceMiscTests - Adjust score based on additional patterns
-;-----------------------------------------------------------------------
-Func ConfidenceMiscTests($Score)
-	;Cell Data
-	;#.match = reduce score
-	;match.### increase score
-	;match.(#|##).(#|##) increase
-	Return $Score
-EndFunc
-
-;#######################################################################
-;		ConfidenceKeyWords - Adjust score based on Cell data and column / table names
-;-----------------------------------------------------------------------
-Func ConfidenceKeyWords($Score)
-	;Cell Data
-	;+ CVV VISA AMEX
-	;- AAA
-	;Table names
-	;
-	;Column Names
-	;phone = reduce score
-	;aaa = reduce score
-	Return $Score
-EndFunc
-
-;#######################################################################
-;		ConfidenceDelimiters - Adjust score based on number and type of delimiters
-;-----------------------------------------------------------------------
-Func ConfidenceDelimiters($Score,$Match)
-	;Find the total number of spaces used by delimiters
-	Local $Delimiters=StringRegExpReplace($Match,"\d","")
-	$Delimiters=StringStripWS($Delimiters,8)
-
-	;Find the number of unique delimiter types "-/+" = 3 for example
-	Local $DelimTypeCount=GetDelimiterTypeCount($Delimiters)
-
-	;Adjust score based on number and type of delimiters
-	If StringLen($Delimiters) <= 4 Then
-		Switch $DelimTypeCount
-			Case 0
-				$Score+=40
-			Case 1
-				$Score+=35
-			Case 2
-				$Score+=20
-			Case 3
-				$Score+=10
-			Case Else
-				$Score+=-10
-		EndSwitch
-	Else
-		Switch $DelimTypeCount
-			Case 1
-				$Score+=25
-			Case 2
-				$Score+=15
-			Case 3
-				$Score+=-10
-			Case Else
-				$Score+=-20
-		EndSwitch
-	EndIf
-
-	Return $Score
 EndFunc
 
 ;#######################################################################
@@ -1960,35 +3905,39 @@ Func MSSQLPreMatch($DataBase,$Table,$aColumn,$oADODB=-1)
 		$SQLErr="Invalid ADODB.Connection object"
 		Return SetError($SQL_ERROR,0,$SQL_ERROR)
 	EndIf
-	_SQL_Execute($oADODB,'USE '&$DataBase&';')
-	_SQL_Execute($oADODB,"SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;")
+	_SQL_Execute($oADODB,'USE '&$DataBase&';'&"SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;")
 	_SQL_Execute($oADODB,"IF (EXISTS (SELECT * FROM tempdb.INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME "& _
 						"LIKE '#dataloc%')) BEGIN DROP TABLE #dataloc END;")
-	If $aColumn[2]="" Then
-		$sQuery='CREATE TABLE #dataloc (RowNumber INT IDENTITY(1,1), "'&$aColumn[0]&'" '&$aColumn[1]&');'
-	Else
-		Switch StringLower($aColumn[1])
-			Case "text"
-				$aColumn[1]="VARCHAR"
-				$aColumn[2]="MAX"
-			Case "ntext"
-				$aColumn[1]="NVARCHAR"
-				$aColumn[2]="MAX"
-			Case "numeric","decimal","dec"
-				$aColumn[2]="38"
-		EndSwitch
-		If $aColumn[2]="-1" Then $aColumn[2]="MAX"
-		$sQuery='CREATE TABLE #dataloc (RowNumber INT IDENTITY(1,1), "'&$aColumn[0]&'" '&$aColumn[1]&'('&$aColumn[2]&'));'
-	EndIf
+
+	If $aColumn[2]="-1" Then $aColumn[2]="MAX"
+	Switch StringLower($aColumn[1])
+		Case "text"
+			$aColumn[2]="MAX"
+			$sQuery='CREATE TABLE #dataloc (RowNumber INT IDENTITY(1,1), "'&$aColumn[0]&'" VARCHAR('&$aColumn[2]&'));'
+		Case "ntext"
+			$aColumn[2]="MAX"
+			$sQuery='CREATE TABLE #dataloc (RowNumber INT IDENTITY(1,1), "'&$aColumn[0]&'" NVARCHAR('&$aColumn[2]&'));'
+		Case "numeric","decimal","dec"
+			$aColumn[2]="38"
+			$sQuery='CREATE TABLE #dataloc (RowNumber INT IDENTITY(1,1), "'&$aColumn[0]&'" '&$aColumn[1]&'('&$aColumn[2]&'));'
+		Case Else
+			$sQuery='CREATE TABLE #dataloc (RowNumber INT IDENTITY(1,1), "'&$aColumn[0]&'" '&$aColumn[1]&'('&$aColumn[2]&'));'
+	EndSwitch
+
 	_SQL_Execute($oADODB,$sQuery) ;Create temp table
+
 	Local $sSelectColumn
 	Switch StringLower($aColumn[1])
 		Case "text"
-			$sSelectColumn='LEFT(CAST("'&$aColumn[0]&'" as VARCHAR(MAX)), 30000)'
+			$sSelectColumn='LEFT(CAST("'&$aColumn[0]&'" as VARCHAR(MAX)), 20000)'
 		Case "ntext"
-			$sSelectColumn='LEFT(CAST("'&$aColumn[0]&'" as NVARCHAR(MAX)), 30000)'
+			$sSelectColumn='LEFT(CAST("'&$aColumn[0]&'" as NVARCHAR(MAX)), 20000)'
 		Case Else
-			$sSelectColumn='LEFT("'&$aColumn[0]&'", 30000)'
+			If $aColumn[2]="MAX" Or $aColumn[2] > 20000 Then
+				$sSelectColumn='LEFT("'&$aColumn[0]&'", 20000)'
+			Else
+				$sSelectColumn='"'&$aColumn[0]&'"'
+			EndIf
 	EndSwitch
 	$sQuery='INSERT INTO #dataloc '& _
 	'Select '&$sSelectColumn&' FROM '&$Table&' WHERE "'&$aColumn[0]&'" LIKE '& _ ;VISA starts with 4 Len=16
@@ -2114,7 +4063,7 @@ EndFunc
 ;		_SQL_Execute -
 ;-----------------------------------------------------------------------
 Func _SQL_Execute($oADODB=-1,$vQuery="")
-	FileWriteLine("sql.log",$vQuery)
+;~ 	FileWriteLine("sql.log",$vQuery)
     $SQLErr=""
     If $oADODB=-1 Then $oADODB=$SQL_LastConnection
     Local $hQuery=$oADODB.Execute($vQuery)
