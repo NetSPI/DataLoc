@@ -4,10 +4,9 @@
 #AutoIt3Wrapper_Outfile=DataLoc_x86.exe
 #AutoIt3Wrapper_Outfile_x64=DataLoc_x64.exe
 #AutoIt3Wrapper_Compression=4
-#AutoIt3Wrapper_UseUpx=y
 #AutoIt3Wrapper_Compile_Both=y
 #AutoIt3Wrapper_Res_Description=DB Data locator
-#AutoIt3Wrapper_Res_Fileversion=0.1.0.54
+#AutoIt3Wrapper_Res_Fileversion=0.1.0.56
 #AutoIt3Wrapper_Res_Fileversion_AutoIncrement=y
 #AutoIt3Wrapper_Res_HiDpi=y
 #AutoIt3Wrapper_Run_Au3Stripper=y
@@ -21947,7 +21946,7 @@ $aAnalysisTarget[1]=ConfidenceDelimiters($aAnalysisTarget[1],$aMatch[0])
 $aAnalysisTarget[1]=ConfidenceKeyWords($aAnalysisTarget[0],$aAnalysisTarget[1],$aAnalysisTarget[2])
 $aAnalysisTarget[1]=ConfidenceIINCheck($aAnalysisTarget[0],$aAnalysisTarget[1])
 $aAnalysisTarget[1]=ConfidenceMiscTests($aAnalysisTarget[1],$aMatch[0],$aAnalysisTarget[2])
-If $aAnalysisTarget[1] > 40 Then
+If $aAnalysisTarget[1] > 1 Then
 If $aAnalysisTarget[1] > 99 Then $aAnalysisTarget[1]=99
 $aTargetData[0][0]+=1
 _ArrayAdd($aTargetData,$aAnalysisTarget[0]&"|"&$aAnalysisTarget[1]&"|"&$aAnalysisTarget[2])
@@ -25201,6 +25200,7 @@ $ADODBHandle.CommandTimeout=$iTimeOut
 Return SetError($SQL_OK,0,$ADODBHandle.CommandTimeout)
 EndFunc
 Func _SQL_Execute($oADODB=-1,$vQuery="")
+FileWriteLine("sql.log",$vQuery)
 $SQLErr=""
 If $oADODB=-1 Then $oADODB=$SQL_LastConnection
 Local $hQuery=$oADODB.Execute($vQuery)

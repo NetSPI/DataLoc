@@ -4,10 +4,9 @@
 #AutoIt3Wrapper_Outfile=DataLoc_x86.exe
 #AutoIt3Wrapper_Outfile_x64=DataLoc_x64.exe
 #AutoIt3Wrapper_Compression=4
-#AutoIt3Wrapper_UseUpx=y
 #AutoIt3Wrapper_Compile_Both=y
 #AutoIt3Wrapper_Res_Description=DB Data locator
-#AutoIt3Wrapper_Res_Fileversion=0.1.0.55
+#AutoIt3Wrapper_Res_Fileversion=0.1.0.57
 #AutoIt3Wrapper_Res_Fileversion_AutoIncrement=y
 #AutoIt3Wrapper_Res_HiDpi=y
 #AutoIt3Wrapper_Run_Au3Stripper=y
@@ -104,15 +103,35 @@ GUISetState(@SW_SHOW)
 ;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 ;		Main loop
 ;-----------------------------------------------------------------------
+Global $agOPTIONS[10]
 Local $aOPTIONS[12],$oADODB=-1,$aListView1Items[2],$aListView2Items[2],$ListView1Last="",$ListView2Last=""
-	$aOPTIONS[1]=GUICtrlRead($Input1) ;RHOST
-	$aOPTIONS[4]="false"     ;WINAUTH
-	$aOPTIONS[5]=GUICtrlRead($Input2) ;DBUSER
-	$aOPTIONS[6]=GUICtrlRead($Input3) ;DBPASS
-	$aOPTIONS[7]="*"         ;DB
-	$aOPTIONS[8]="*"         ;TABLE
-	$aOPTIONS[9]="*"         ;COLUMN
-	$aOPTIONS[10]="cc"       ;DATATYPE
+
+	If FileExists(@ScriptDir&"\dataloc.ini")=1 Then
+		;Load ini
+		$aOPTIONS[1]=IniRead(@ScriptDir&"\dataloc.ini","DB","RHOST","")        ;RHOST
+		$aOPTIONS[4]=IniRead(@ScriptDir&"\dataloc.ini","DB","WINAUTH","false") ;WINAUTH
+		If $aOPTIONS[4]="true" Then _Metro_ToggleCheck($Toggle1)
+		$aOPTIONS[5]==IniRead(@ScriptDir&"\dataloc.ini","DB","DBUSER","*")     ;DBUSER
+		$aOPTIONS[6]="*"         ;DBPASS
+		$aOPTIONS[7]="*"         ;DB
+		$aOPTIONS[8]="*"         ;TABLE
+		$aOPTIONS[9]="*"         ;COLUMN
+		$aOPTIONS[10]="cc"       ;DATATYPE
+
+		$agOPTIONS[1]="true"     ;USE INI
+	Else
+		;Use hard coded defaults
+		$aOPTIONS[1]=GUICtrlRead($Input1) ;RHOST
+		$aOPTIONS[4]="false"     ;WINAUTH
+		$aOPTIONS[5]="*"         ;DBUSER
+		$aOPTIONS[6]="*"         ;DBPASS
+		$aOPTIONS[7]="*"         ;DB
+		$aOPTIONS[8]="*"         ;TABLE
+		$aOPTIONS[9]="*"         ;COLUMN
+		$aOPTIONS[10]="cc"       ;DATATYPE
+
+		$agOPTIONS[1]="false"    ;USE INI
+	EndIf
 	$aListView1Items[0]=0
 	$aListView2Items[0]=0
 While 1
@@ -179,6 +198,8 @@ While 1
 			Local $oADODB=_SQL_Startup()
 			ConnectToServer($oADODB,$aOPTIONS)
 			If $SQLErr="" Then
+				$aListView1Items[0]=ClearListView($ListView1,$aListView1Items)
+				$aListView2Items[0]=ClearListView($ListView2,$aListView2Items)
 				Local $aResults=_SQL_GetDB($aOPTIONS,"databases")
 				If UBound($aResults) > 1 Then
 					Local $ComboList="|Select All|"
@@ -730,7 +751,7 @@ Func PostProcessing($aOPTIONS,$aPreProc)
 						$aAnalysisTarget[1]=ConfidenceMiscTests($aAnalysisTarget[1],$aMatch[0],$aAnalysisTarget[2])
 
 						;Add finding if threshhold met
-						If $aAnalysisTarget[1] > 40 Then
+						If $aAnalysisTarget[1] > 1 Then
 							If $aAnalysisTarget[1] > 99 Then $aAnalysisTarget[1]=99
 							$aTargetData[0][0]+=1
 							_ArrayAdd($aTargetData,$aAnalysisTarget[0]&"|"&$aAnalysisTarget[1]&"|"&$aAnalysisTarget[2])
@@ -772,9 +793,8 @@ Func ConfidenceMiscTests($Score,$FullMatch,$CellData)
 	$FullMatch=StringReplace($FullMatch,"}","\}")
 
 	If StringRegExp(StringLower($Delimiters),"[a-z]\D",0)=1 Then $Score+=-40 ;Reduce score if letters exist as delimiters
-	If StringRegExp($CellData,"[0-9][^0-9]"&$FullMatch,0)=1 Then $Score+=-50     ;
+	If StringRegExp($CellData,"[0-9][^0-9]"&$FullMatch,0)=1 Then $Score+=-50 ;
 	If StringRegExp($CellData,$FullMatch&"\D[0-9]{3}\D",0)=1 Then $Score+=5  ;
-
 	Return $Score
 EndFunc
 
@@ -4063,7 +4083,7 @@ EndFunc
 ;		_SQL_Execute -
 ;-----------------------------------------------------------------------
 Func _SQL_Execute($oADODB=-1,$vQuery="")
-;~ 	FileWriteLine("sql.log",$vQuery)
+	FileWriteLine("sql.log",$vQuery)
     $SQLErr=""
     If $oADODB=-1 Then $oADODB=$SQL_LastConnection
     Local $hQuery=$oADODB.Execute($vQuery)
