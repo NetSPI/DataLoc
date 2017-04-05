@@ -1,8 +1,8 @@
 #NoTrayIcon
 #Region ;**** Directives created by AutoIt3Wrapper_GUI ****
 #AutoIt3Wrapper_Icon=Etc\Cake.ico
-#AutoIt3Wrapper_Outfile=DataLoc_x86.exe
-#AutoIt3Wrapper_Outfile_x64=DataLoc_x64.exe
+#AutoIt3Wrapper_Outfile=dataLoc_x86.exe
+#AutoIt3Wrapper_Outfile_x64=dataLoc_x64.exe
 #AutoIt3Wrapper_Compression=4
 #AutoIt3Wrapper_Compile_Both=y
 #AutoIt3Wrapper_Res_Description=DB Data locator
@@ -21,6 +21,7 @@
 #include <GUIListBox.au3>
 #include <GuiComboBox.au3>
 #include <GuiListView.au3>
+#include <GuiRichEdit.au3>
 #include <ComboConstants.au3>
 #include <GUIConstantsEx.au3>
 #include <StaticConstants.au3>
@@ -111,7 +112,7 @@ Local $aOPTIONS[12],$oADODB=-1,$aListView1Items[2],$aListView2Items[2],$ListView
 		$aOPTIONS[1]=IniRead(@ScriptDir&"\dataloc.ini","DB","RHOST","")        ;RHOST
 		$aOPTIONS[4]=IniRead(@ScriptDir&"\dataloc.ini","DB","WINAUTH","false") ;WINAUTH
 		If $aOPTIONS[4]="true" Then _Metro_ToggleCheck($Toggle1)
-		$aOPTIONS[5]==IniRead(@ScriptDir&"\dataloc.ini","DB","DBUSER","*")     ;DBUSER
+		$aOPTIONS[5]=IniRead(@ScriptDir&"\dataloc.ini","DB","DBUSER","*")     ;DBUSER
 		$aOPTIONS[6]="*"         ;DBPASS
 		$aOPTIONS[7]="*"         ;DB
 		$aOPTIONS[8]="*"         ;TABLE
@@ -349,6 +350,48 @@ Func _AboutGUI()
 	Local $Button1 = _Metro_CreateButton("Close", 250, 340, 100, 40)
 	GUICtrlSetResizing($Button1, 768 + 8)
 	GUISetState(@SW_SHOW)
+
+	Local $hRichEdit=_GUICtrlRichEdit_Create($Form3,"",20,30,560,290,BitOR($ES_MULTILINE,$WS_VSCROLL,$ES_AUTOVSCROLL))
+
+	Local $AboutTxt
+	$AboutTxt=$AboutTxt&"                                                              ========= dataLoc  1.0 ========="&@CRLF
+	$AboutTxt=$AboutTxt&"                                                                      Copyright (c) 2017, NetSPI"&@CRLF
+	$AboutTxt=$AboutTxt&"                                                                             All rights reserved"&@CRLF
+	$AboutTxt=$AboutTxt&""&@CRLF
+	$AboutTxt=$AboutTxt&"Redistribution and use in source and binary forms, with or without"&@CRLF
+	$AboutTxt=$AboutTxt&"modification, are permitted provided that the following conditions are met:"&@CRLF
+	$AboutTxt=$AboutTxt&""&@CRLF
+	$AboutTxt=$AboutTxt&"* Redistributions of source code must retain the above copyright notice, this"&@CRLF
+	$AboutTxt=$AboutTxt&"  list of conditions and the following disclaimer."&@CRLF
+	$AboutTxt=$AboutTxt&""&@CRLF
+	$AboutTxt=$AboutTxt&"* Redistributions in binary form must reproduce the above copyright notice,"&@CRLF
+	$AboutTxt=$AboutTxt&"  this list of conditions and the following disclaimer in the documentation"&@CRLF
+	$AboutTxt=$AboutTxt&"  and/or other materials provided with the distribution."&@CRLF
+	$AboutTxt=$AboutTxt&""&@CRLF
+	$AboutTxt=$AboutTxt&"* Neither the name of dataLoc nor the names of its"&@CRLF
+	$AboutTxt=$AboutTxt&"  contributors may be used to endorse or promote products derived from"&@CRLF
+	$AboutTxt=$AboutTxt&"  this software without specific prior written permission."&@CRLF
+	$AboutTxt=$AboutTxt&""&@CRLF
+	$AboutTxt=$AboutTxt&'THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"'&@CRLF
+	$AboutTxt=$AboutTxt&"AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE"&@CRLF
+	$AboutTxt=$AboutTxt&"IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE"&@CRLF
+	$AboutTxt=$AboutTxt&"DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE"&@CRLF
+	$AboutTxt=$AboutTxt&"FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL"&@CRLF
+	$AboutTxt=$AboutTxt&"DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR"&@CRLF
+	$AboutTxt=$AboutTxt&"SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER"&@CRLF
+	$AboutTxt=$AboutTxt&"CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,"&@CRLF
+	$AboutTxt=$AboutTxt&"OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE"&@CRLF
+	$AboutTxt=$AboutTxt&"OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."&@CRLF
+	$AboutTxt=$AboutTxt&""&@CRLF
+	$AboutTxt=$AboutTxt&"------------------------------------------------------------------------------------------------------------------------------------------------------------------------------"&@CRLF
+	$AboutTxt=$AboutTxt&"Author: Gabriel Cogar"&@CRLF
+	$AboutTxt=$AboutTxt&""&@CRLF
+	$AboutTxt=$AboutTxt&"Special thanks to:"&@CRLF
+	$AboutTxt=$AboutTxt&"     BB_19, author of the MetroGUI UDF -"&@CRLF
+	$AboutTxt=$AboutTxt&"https://www.autoitscript.com/forum/topic/161184-metrogui-udf-v4-windows-10-style-buttons-toggles-radios-menu-etc/"&@CRLF
+	_GUICtrlRichEdit_AppendText($hRichEdit,$AboutTxt)
+	_GUICtrlRichEdit_SetScrollPos($hRichEdit,0,0)
+
 
 	While 1
 		_Metro_HoverCheck_Loop($Form3) ;Add hover check in loop
