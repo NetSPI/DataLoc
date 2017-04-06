@@ -80,12 +80,12 @@ GUICtrlSetResizing($Combo1,768+2+32)
 GUICtrlSetState($Combo1,$GUI_Disable)
 
 ;Table selection list view
-$ListView1=GUICtrlCreateListView("Table|Rows",10,150,250,201)
+$ListView1=GUICtrlCreateListView("Table                                   |Rows              ",10,150,250,201,-1,$LVS_EX_FULLROWSELECT)
 GUICtrlSetResizing($ListView1,256+2+32+64)
 GUICtrlSetState($ListView1,$GUI_Disable)
 
 ;Column selection list view
-$ListView2=GUICtrlCreateListView("Column|Type|Length",265,32,430,290)
+$ListView2=GUICtrlCreateListView("Column                               |Type     |Length           ",265,32,430,290,-1,$LVS_EX_FULLROWSELECT)
 GUICtrlSetResizing($ListView2,2+4+32+64)
 GUICtrlSetState($ListView2,$GUI_Disable)
 
@@ -109,66 +109,68 @@ Local $aOPTIONS[12],$oADODB=-1,$aListView1Items[2],$aListView2Items[2],$ListView
 Local $iniFile=@AppDataDir&"\dataLoc\dataloc.ini"
 
 	If FileExists($iniFile)=1 Then
-		;#####  Load ini
-		$aOPTIONS[1]=IniRead($iniFile,"DB","RHOST","")                      ;RHOST
-		$aOPTIONS[4]=IniRead($iniFile,"DB","WINAUTH","false")               ;WINAUTH
-		If $aOPTIONS[4]="true" Then _Metro_ToggleCheck($Toggle1)
-		$aOPTIONS[5]=IniRead($iniFile,"DB","DBUSER","*")                    ;DBUSER
-		$aOPTIONS[6]="*"                                                    ;DBPASS
-		$aOPTIONS[7]="*"                                                    ;DB
-		$aOPTIONS[8]="*"                                                    ;TABLE
-		$aOPTIONS[9]="*"                                                    ;COLUMN
-		$aOPTIONS[10]="cc"                                                  ;DATATYPE
+		If IniRead($iniFile,"GUI","UseINI","0")=1 Then
+			;#####  Load ini
+			$aOPTIONS[1]=IniRead($iniFile,"DB","RHOST","")                      ;RHOST
+			$aOPTIONS[4]=IniRead($iniFile,"DB","WINAUTH","false")               ;WINAUTH
+			If $aOPTIONS[4]="true" Then _Metro_ToggleCheck($Toggle1)
+			$aOPTIONS[5]=IniRead($iniFile,"DB","DBUSER","*")                    ;DBUSER
+			$aOPTIONS[6]="*"                                                    ;DBPASS
+			$aOPTIONS[7]="*"                                                    ;DB
+			$aOPTIONS[8]="*"                                                    ;TABLE
+			$aOPTIONS[9]="*"                                                    ;COLUMN
+			$aOPTIONS[10]="cc"                                                  ;DATATYPE
 
-		$agOPTIONS[1]="1"                                                   ;USE INI
-		$agOPTIONS[2]=IniRead($iniFile,"ScanControls","TimeOut","10")       ;Per-Column Timeout in min.
-		If StringIsInt($agOPTIONS[2])=0 Then $agOPTIONS[2]="10"
-		$agOPTIONS[3]=IniRead($iniFile,"ScanControls","EnforceTimeout","1") ;Enforce Per-Column Timeout 1=true
-		If StringIsInt($agOPTIONS[3])=0 Then $agOPTIONS[3]="1"
-		$agOPTIONS[4]=""                                                    ;Reserved
-		;##Scoring
-		;Misc
-		$agOPTIONS[5]=IniRead($iniFile,"ScoringMisc","Base","50")           ;Base Score Luhn Valid
-		If StringIsInt($agOPTIONS[5])=0 Then $agOPTIONS[5]="50"
-		$agOPTIONS[6]=IniRead($iniFile,"ScoringMisc","Letters","-40")       ;Letters as delimiters "[a-z]\D"
-		If StringIsInt($agOPTIONS[6])=0 Then $agOPTIONS[6]="-40"
-		$agOPTIONS[7]=IniRead($iniFile,"ScoringMisc","CVV","5")             ;Card Number followed by CVV $FullMatch&"\D[0-9]{3}\D"
-		If StringIsInt($agOPTIONS[7])=0 Then $agOPTIONS[7]="5"
-		$agOPTIONS[8]=IniRead($iniFile,"ScoringMisc","Phone","-50")         ;Potential Phone Number "[^0-9]*[0-9][^0-9]"&$FullMatch
-		If StringIsInt($agOPTIONS[8])=0 Then $agOPTIONS[8]="-50"
-		;Key Words
-		$agOPTIONS[9]=IniRead($iniFile,"ScoringWords","CardNames","10")     ;Card Name present in cell amex, visa, mastercard, discover
-		If StringIsInt($agOPTIONS[9])=0 Then $agOPTIONS[9]="10"
-		$agOPTIONS[10]=IniRead($iniFile,"ScoringWords","Generic","5")       ;Generic key words cc, billing, card, credit, cvv, payment
-		If StringIsInt($agOPTIONS[10])=0 Then $agOPTIONS[10]="5"
-		$agOPTIONS[11]=IniRead($iniFile,"ScoringWords","Negative","-25")    ;Negative key words aaa
-		If StringIsInt($agOPTIONS[11])=0 Then $agOPTIONS[11]="-25"
-		;Delimiters
-		$agOPTIONS[12]=IniRead($iniFile,"Delimiters","<=4_Types=0","15")    ;Count <=4 Types 0
-		If StringIsInt($agOPTIONS[12])=0 Then $agOPTIONS[12]="15"
-		$agOPTIONS[13]=IniRead($iniFile,"Delimiters","<=4_Types=1","10")    ;Count <=4 Types 1
-		If StringIsInt($agOPTIONS[13])=0 Then $agOPTIONS[13]="10"
-		$agOPTIONS[14]=IniRead($iniFile,"Delimiters","<=4_Types=2","5")     ;Count <=4 Types 2
-		If StringIsInt($agOPTIONS[14])=0 Then $agOPTIONS[14]="5"
-		$agOPTIONS[15]=IniRead($iniFile,"Delimiters","<=4_Types=3","-20")   ;Count <=4 Types 3
-		If StringIsInt($agOPTIONS[15])=0 Then $agOPTIONS[15]="-20"
-		$agOPTIONS[16]=IniRead($iniFile,"Delimiters","<=4_Types>3","-25")   ;Count <=4 Types >3
-		If StringIsInt($agOPTIONS[16])=0 Then $agOPTIONS[16]="-25"
-		$agOPTIONS[17]=IniRead($iniFile,"Delimiters",">4_Types=1","15")     ;Count >4 Types 1
-		If StringIsInt($agOPTIONS[17])=0 Then $agOPTIONS[17]="15"
-		$agOPTIONS[18]=IniRead($iniFile,"Delimiters",">4_Types=2","-10")    ;Count >4 Types 2
-		If StringIsInt($agOPTIONS[18])=0 Then $agOPTIONS[18]="-10"
-		$agOPTIONS[19]=IniRead($iniFile,"Delimiters",">4_Types=3","-30")    ;Count >4 Types 3
-		If StringIsInt($agOPTIONS[19])=0 Then $agOPTIONS[19]="-30"
-		$agOPTIONS[20]=IniRead($iniFile,"Delimiters",">4_Types>3","-40")    ;Count >4 Types >3
-		If StringIsInt($agOPTIONS[20])=0 Then $agOPTIONS[20]="-40"
-		;IIN Check
-		$agOPTIONS[21]=IniRead($iniFile,"IIN","6-Digit","10")               ;6 digit match
-		If StringIsInt($agOPTIONS[21])=0 Then $agOPTIONS[21]="10"
-		$agOPTIONS[22]=IniRead($iniFile,"IIN","4-Digit","5")                ;4 digit match
-		If StringIsInt($agOPTIONS[22])=0 Then $agOPTIONS[22]="5"
-		$agOPTIONS[23]=IniRead($iniFile,"IIN","NoMatch","-5")               ;No match
-		If StringIsInt($agOPTIONS[23])=0 Then $agOPTIONS[23]="-5"
+			$agOPTIONS[1]="1"                                                   ;USE INI
+			$agOPTIONS[2]=IniRead($iniFile,"ScanControls","TimeOut","10")       ;Per-Column Timeout in min.
+			If StringIsInt($agOPTIONS[2])=0 Then $agOPTIONS[2]="10"
+			$agOPTIONS[3]=IniRead($iniFile,"ScanControls","EnforceTimeout","1") ;Enforce Per-Column Timeout 1=true
+			If StringIsInt($agOPTIONS[3])=0 Then $agOPTIONS[3]="1"
+			$agOPTIONS[4]=""                                                    ;Reserved
+			;##Scoring
+			;Misc
+			$agOPTIONS[5]=IniRead($iniFile,"ScoringMisc","Base","50")           ;Base Score Luhn Valid
+			If StringIsInt($agOPTIONS[5])=0 Then $agOPTIONS[5]="50"
+			$agOPTIONS[6]=IniRead($iniFile,"ScoringMisc","Letters","-40")       ;Letters as delimiters "[a-z]\D"
+			If StringIsInt($agOPTIONS[6])=0 Then $agOPTIONS[6]="-40"
+			$agOPTIONS[7]=IniRead($iniFile,"ScoringMisc","CVV","5")             ;Card Number followed by CVV $FullMatch&"\D[0-9]{3}\D"
+			If StringIsInt($agOPTIONS[7])=0 Then $agOPTIONS[7]="5"
+			$agOPTIONS[8]=IniRead($iniFile,"ScoringMisc","Phone","-50")         ;Potential Phone Number "[^0-9]*[0-9][^0-9]"&$FullMatch
+			If StringIsInt($agOPTIONS[8])=0 Then $agOPTIONS[8]="-50"
+			;Key Words
+			$agOPTIONS[9]=IniRead($iniFile,"ScoringWords","CardNames","10")     ;Card Name present in cell amex, visa, mastercard, discover
+			If StringIsInt($agOPTIONS[9])=0 Then $agOPTIONS[9]="10"
+			$agOPTIONS[10]=IniRead($iniFile,"ScoringWords","Generic","5")       ;Generic key words cc, billing, card, credit, cvv, payment
+			If StringIsInt($agOPTIONS[10])=0 Then $agOPTIONS[10]="5"
+			$agOPTIONS[11]=IniRead($iniFile,"ScoringWords","Negative","-25")    ;Negative key words aaa
+			If StringIsInt($agOPTIONS[11])=0 Then $agOPTIONS[11]="-25"
+			;Delimiters
+			$agOPTIONS[12]=IniRead($iniFile,"Delimiters","<=4_Types=0","15")    ;Count <=4 Types 0
+			If StringIsInt($agOPTIONS[12])=0 Then $agOPTIONS[12]="15"
+			$agOPTIONS[13]=IniRead($iniFile,"Delimiters","<=4_Types=1","10")    ;Count <=4 Types 1
+			If StringIsInt($agOPTIONS[13])=0 Then $agOPTIONS[13]="10"
+			$agOPTIONS[14]=IniRead($iniFile,"Delimiters","<=4_Types=2","5")     ;Count <=4 Types 2
+			If StringIsInt($agOPTIONS[14])=0 Then $agOPTIONS[14]="5"
+			$agOPTIONS[15]=IniRead($iniFile,"Delimiters","<=4_Types=3","-20")   ;Count <=4 Types 3
+			If StringIsInt($agOPTIONS[15])=0 Then $agOPTIONS[15]="-20"
+			$agOPTIONS[16]=IniRead($iniFile,"Delimiters","<=4_Types>3","-25")   ;Count <=4 Types >3
+			If StringIsInt($agOPTIONS[16])=0 Then $agOPTIONS[16]="-25"
+			$agOPTIONS[17]=IniRead($iniFile,"Delimiters",">4_Types=1","15")     ;Count >4 Types 1
+			If StringIsInt($agOPTIONS[17])=0 Then $agOPTIONS[17]="15"
+			$agOPTIONS[18]=IniRead($iniFile,"Delimiters",">4_Types=2","-10")    ;Count >4 Types 2
+			If StringIsInt($agOPTIONS[18])=0 Then $agOPTIONS[18]="-10"
+			$agOPTIONS[19]=IniRead($iniFile,"Delimiters",">4_Types=3","-30")    ;Count >4 Types 3
+			If StringIsInt($agOPTIONS[19])=0 Then $agOPTIONS[19]="-30"
+			$agOPTIONS[20]=IniRead($iniFile,"Delimiters",">4_Types>3","-40")    ;Count >4 Types >3
+			If StringIsInt($agOPTIONS[20])=0 Then $agOPTIONS[20]="-40"
+			;IIN Check
+			$agOPTIONS[21]=IniRead($iniFile,"IIN","6-Digit","10")               ;6 digit match
+			If StringIsInt($agOPTIONS[21])=0 Then $agOPTIONS[21]="10"
+			$agOPTIONS[22]=IniRead($iniFile,"IIN","4-Digit","5")                ;4 digit match
+			If StringIsInt($agOPTIONS[22])=0 Then $agOPTIONS[22]="5"
+			$agOPTIONS[23]=IniRead($iniFile,"IIN","NoMatch","-5")               ;No match
+			If StringIsInt($agOPTIONS[23])=0 Then $agOPTIONS[23]="-5"
+		EndIf
 	Else
 		;Use hard coded defaults
 		$aOPTIONS[1]=GUICtrlRead($Input1) ;RHOST
@@ -381,9 +383,15 @@ WEnd
 ;		SaveINI - Write settings to ini file
 ;-----------------------------------------------------------------------
 Func SaveINI($iniFile,$aOPTIONS)
+	If FileExists($iniFile)=0 Then ;file doesn't exist
+		FileClose(FileOpen($iniFile,8))
+	EndIf
+
 	IniWrite($iniFile,"DB","RHOST",$aOPTIONS[1])                     ;RHOST
 	IniWrite($iniFile,"DB","WINAUTH",$aOPTIONS[4])                   ;WINAUTH
 	IniWrite($iniFile,"DB","DBUSER",$aOPTIONS[5])                    ;DBUSER
+
+	IniWrite($iniFile,"GUI","UseINI",$agOPTIONS[1])                  ;Use INI
 
 	IniWrite($iniFile,"ScanControls","TimeOut",$agOPTIONS[2])        ;Per-Column Timeout in min.
 	IniWrite($iniFile,"ScanControls","EnforceTimeout",$agOPTIONS[3]) ;Enforce Per-Column Timeout 1=true
