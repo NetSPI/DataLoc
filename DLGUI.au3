@@ -6,7 +6,7 @@
 #AutoIt3Wrapper_Compression=4
 #AutoIt3Wrapper_Compile_Both=y
 #AutoIt3Wrapper_Res_Description=DB Data locator
-#AutoIt3Wrapper_Res_Fileversion=0.1.0.59
+#AutoIt3Wrapper_Res_Fileversion=0.1.0.61
 #AutoIt3Wrapper_Res_Fileversion_AutoIncrement=y
 #AutoIt3Wrapper_Res_HiDpi=y
 #AutoIt3Wrapper_Run_Au3Stripper=y
@@ -145,21 +145,21 @@ Local $iniFile=@AppDataDir&"\dataLoc\dataloc.ini"
 			$agOPTIONS[11]=IniRead($iniFile,"ScoringWords","Negative","-25")    ;Negative key words aaa
 			If StringIsInt($agOPTIONS[11])=0 Then $agOPTIONS[11]="-25"
 			;Delimiters
-			$agOPTIONS[12]=IniRead($iniFile,"Delimiters","<=4_Types=0","15")    ;Count <=4 Types 0
+			$agOPTIONS[12]=IniRead($iniFile,"Delimiters","<4_Types0","15")    ;Count <=4 Types 0
 			If StringIsInt($agOPTIONS[12])=0 Then $agOPTIONS[12]="15"
-			$agOPTIONS[13]=IniRead($iniFile,"Delimiters","<=4_Types=1","10")    ;Count <=4 Types 1
+			$agOPTIONS[13]=IniRead($iniFile,"Delimiters","<4_Types1","10")    ;Count <=4 Types 1
 			If StringIsInt($agOPTIONS[13])=0 Then $agOPTIONS[13]="10"
-			$agOPTIONS[14]=IniRead($iniFile,"Delimiters","<=4_Types=2","5")     ;Count <=4 Types 2
+			$agOPTIONS[14]=IniRead($iniFile,"Delimiters","<4_Types2","5")     ;Count <=4 Types 2
 			If StringIsInt($agOPTIONS[14])=0 Then $agOPTIONS[14]="5"
-			$agOPTIONS[15]=IniRead($iniFile,"Delimiters","<=4_Types=3","-20")   ;Count <=4 Types 3
+			$agOPTIONS[15]=IniRead($iniFile,"Delimiters","<4_Types3","-20")   ;Count <=4 Types 3
 			If StringIsInt($agOPTIONS[15])=0 Then $agOPTIONS[15]="-20"
-			$agOPTIONS[16]=IniRead($iniFile,"Delimiters","<=4_Types>3","-25")   ;Count <=4 Types >3
+			$agOPTIONS[16]=IniRead($iniFile,"Delimiters","<4_Types>3","-25")   ;Count <=4 Types >3
 			If StringIsInt($agOPTIONS[16])=0 Then $agOPTIONS[16]="-25"
-			$agOPTIONS[17]=IniRead($iniFile,"Delimiters",">4_Types=1","15")     ;Count >4 Types 1
+			$agOPTIONS[17]=IniRead($iniFile,"Delimiters",">4_Types1","15")     ;Count >4 Types 1
 			If StringIsInt($agOPTIONS[17])=0 Then $agOPTIONS[17]="15"
-			$agOPTIONS[18]=IniRead($iniFile,"Delimiters",">4_Types=2","-10")    ;Count >4 Types 2
+			$agOPTIONS[18]=IniRead($iniFile,"Delimiters",">4_Types2","-10")    ;Count >4 Types 2
 			If StringIsInt($agOPTIONS[18])=0 Then $agOPTIONS[18]="-10"
-			$agOPTIONS[19]=IniRead($iniFile,"Delimiters",">4_Types=3","-30")    ;Count >4 Types 3
+			$agOPTIONS[19]=IniRead($iniFile,"Delimiters",">4_Types3","-30")    ;Count >4 Types 3
 			If StringIsInt($agOPTIONS[19])=0 Then $agOPTIONS[19]="-30"
 			$agOPTIONS[20]=IniRead($iniFile,"Delimiters",">4_Types>3","-40")    ;Count >4 Types >3
 			If StringIsInt($agOPTIONS[20])=0 Then $agOPTIONS[20]="-40"
@@ -226,9 +226,9 @@ While 1
 	Switch $nMsg
 		Case $GUI_EVENT_CLOSE,$aControl_Buttons[0]
 			;CLOSE_BUTTON
+			If $agOPTIONS[1]="1" Then SaveINI($iniFile,$aOPTIONS)
 			_Metro_GUIDelete($Form1) ;Delete GUI/release resources
 			_SQL_Close($oADODB)
-			If $agOPTIONS[1]="1" Then SaveINI($iniFile,$aOPTIONS)
 			Exit
 		Case $aControl_Buttons[1]
 			;MAXIMIZE_BUTTON
@@ -253,9 +253,9 @@ While 1
 					_AboutGUI()
 					_GUIDisable($Form1)
 				Case "2" ;Exit
+					If $agOPTIONS[1]="1" Then SaveINI($iniFile,$aOPTIONS)
 					_Metro_GUIDelete($Form1)
 					_SQL_Close($oADODB)
-					If $agOPTIONS[1]="1" Then SaveINI($iniFile,$aOPTIONS)
 					Exit
 			EndSwitch
 		Case $Toggle1 ;Toggle authentication type
@@ -384,7 +384,10 @@ WEnd
 ;-----------------------------------------------------------------------
 Func SaveINI($iniFile,$aOPTIONS)
 	If FileExists($iniFile)=0 Then ;file doesn't exist
-		FileClose(FileOpen($iniFile,8))
+		MsgBox(0,"Attempting File Create",$iniFile)
+		Local $hFile=FileOpen($iniFile,10)
+		FileWrite($hFile,"## dataLoc persistent settings")
+		FileClose($hFile)
 	EndIf
 
 	IniWrite($iniFile,"DB","RHOST",$aOPTIONS[1])                     ;RHOST
@@ -406,14 +409,14 @@ Func SaveINI($iniFile,$aOPTIONS)
 	IniWrite($iniFile,"ScoringWords","Generic",$agOPTIONS[10])       ;Generic key words cc, billing, card, credit, cvv, payment
 	IniWrite($iniFile,"ScoringWords","Negative",$agOPTIONS[11])      ;Negative key words aaa
 	;Delimiters
-	IniWrite($iniFile,"Delimiters","<=4_Types=0",$agOPTIONS[12])     ;Count <=4 Types 0
-	IniWrite($iniFile,"Delimiters","<=4_Types=1",$agOPTIONS[13])     ;Count <=4 Types 1
-	IniWrite($iniFile,"Delimiters","<=4_Types=2",$agOPTIONS[14])     ;Count <=4 Types 2
-	IniWrite($iniFile,"Delimiters","<=4_Types=3",$agOPTIONS[15])     ;Count <=4 Types 3
-	IniWrite($iniFile,"Delimiters","<=4_Types>3",$agOPTIONS[16])     ;Count <=4 Types >3
-	IniWrite($iniFile,"Delimiters",">4_Types=1",$agOPTIONS[17])      ;Count >4 Types 1
-	IniWrite($iniFile,"Delimiters",">4_Types=2",$agOPTIONS[18])      ;Count >4 Types 2
-	IniWrite($iniFile,"Delimiters",">4_Types=3",$agOPTIONS[19])      ;Count >4 Types 3
+	IniWrite($iniFile,"Delimiters","<4_Types0",$agOPTIONS[12])     ;Count <=4 Types 0
+	IniWrite($iniFile,"Delimiters","<4_Types1",$agOPTIONS[13])     ;Count <=4 Types 1
+	IniWrite($iniFile,"Delimiters","<4_Types2",$agOPTIONS[14])     ;Count <=4 Types 2
+	IniWrite($iniFile,"Delimiters","<4_Types3",$agOPTIONS[15])     ;Count <=4 Types 3
+	IniWrite($iniFile,"Delimiters","<4_Types>3",$agOPTIONS[16])     ;Count <=4 Types >3
+	IniWrite($iniFile,"Delimiters",">4_Types1",$agOPTIONS[17])      ;Count >4 Types 1
+	IniWrite($iniFile,"Delimiters",">4_Types2",$agOPTIONS[18])      ;Count >4 Types 2
+	IniWrite($iniFile,"Delimiters",">4_Types3",$agOPTIONS[19])      ;Count >4 Types 3
 	IniWrite($iniFile,"Delimiters",">4_Types>3",$agOPTIONS[20])      ;Count >4 Types >3
 	;IIN Check
 	IniWrite($iniFile,"IIN","6-Digit",$agOPTIONS[21])                ;6 digit match

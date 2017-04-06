@@ -6,7 +6,7 @@
 #AutoIt3Wrapper_Compression=4
 #AutoIt3Wrapper_Compile_Both=y
 #AutoIt3Wrapper_Res_Description=DB Data locator
-#AutoIt3Wrapper_Res_Fileversion=0.1.0.58
+#AutoIt3Wrapper_Res_Fileversion=0.1.0.60
 #AutoIt3Wrapper_Res_Fileversion_AutoIncrement=y
 #AutoIt3Wrapper_Res_HiDpi=y
 #AutoIt3Wrapper_Run_Au3Stripper=y
@@ -23915,10 +23915,10 @@ GUICtrlSetResizing($Label3,768+2+32)
 $Combo1=GUICtrlCreateCombo("",60,120,200,25)
 GUICtrlSetResizing($Combo1,768+2+32)
 GUICtrlSetState($Combo1,$GUI_Disable)
-$ListView1=GUICtrlCreateListView("Table|Rows",10,150,250,201)
+$ListView1=GUICtrlCreateListView("Table                                   |Rows              ",10,150,250,201,-1,$LVS_EX_FULLROWSELECT)
 GUICtrlSetResizing($ListView1,256+2+32+64)
 GUICtrlSetState($ListView1,$GUI_Disable)
-$ListView2=GUICtrlCreateListView("Column|Type|Length",265,32,430,290)
+$ListView2=GUICtrlCreateListView("Column                               |Type     |Length           ",265,32,430,290,-1,$LVS_EX_FULLROWSELECT)
 GUICtrlSetResizing($ListView2,2+4+32+64)
 GUICtrlSetState($ListView2,$GUI_Disable)
 $Button2=_Metro_CreateButton("Scan",605,327,90,23)
@@ -23932,6 +23932,7 @@ Global $agOPTIONS[24]
 Local $aOPTIONS[12],$oADODB=-1,$aListView1Items[2],$aListView2Items[2],$ListView1Last="",$ListView2Last=""
 Local $iniFile=@AppDataDir&"\dataLoc\dataloc.ini"
 If FileExists($iniFile)=1 Then
+If IniRead($iniFile,"GUI","UseINI","0")=1 Then
 $aOPTIONS[1]=IniRead($iniFile,"DB","RHOST","")
 $aOPTIONS[4]=IniRead($iniFile,"DB","WINAUTH","false")
 If $aOPTIONS[4]="true" Then _Metro_ToggleCheck($Toggle1)
@@ -23961,21 +23962,21 @@ $agOPTIONS[10]=IniRead($iniFile,"ScoringWords","Generic","5")
 If StringIsInt($agOPTIONS[10])=0 Then $agOPTIONS[10]="5"
 $agOPTIONS[11]=IniRead($iniFile,"ScoringWords","Negative","-25")
 If StringIsInt($agOPTIONS[11])=0 Then $agOPTIONS[11]="-25"
-$agOPTIONS[12]=IniRead($iniFile,"Delimiters","<=4_Types=0","15")
+$agOPTIONS[12]=IniRead($iniFile,"Delimiters","<4_Types0","15")
 If StringIsInt($agOPTIONS[12])=0 Then $agOPTIONS[12]="15"
-$agOPTIONS[13]=IniRead($iniFile,"Delimiters","<=4_Types=1","10")
+$agOPTIONS[13]=IniRead($iniFile,"Delimiters","<4_Types1","10")
 If StringIsInt($agOPTIONS[13])=0 Then $agOPTIONS[13]="10"
-$agOPTIONS[14]=IniRead($iniFile,"Delimiters","<=4_Types=2","5")
+$agOPTIONS[14]=IniRead($iniFile,"Delimiters","<4_Types2","5")
 If StringIsInt($agOPTIONS[14])=0 Then $agOPTIONS[14]="5"
-$agOPTIONS[15]=IniRead($iniFile,"Delimiters","<=4_Types=3","-20")
+$agOPTIONS[15]=IniRead($iniFile,"Delimiters","<4_Types3","-20")
 If StringIsInt($agOPTIONS[15])=0 Then $agOPTIONS[15]="-20"
-$agOPTIONS[16]=IniRead($iniFile,"Delimiters","<=4_Types>3","-25")
+$agOPTIONS[16]=IniRead($iniFile,"Delimiters","<4_Types>3","-25")
 If StringIsInt($agOPTIONS[16])=0 Then $agOPTIONS[16]="-25"
-$agOPTIONS[17]=IniRead($iniFile,"Delimiters",">4_Types=1","15")
+$agOPTIONS[17]=IniRead($iniFile,"Delimiters",">4_Types1","15")
 If StringIsInt($agOPTIONS[17])=0 Then $agOPTIONS[17]="15"
-$agOPTIONS[18]=IniRead($iniFile,"Delimiters",">4_Types=2","-10")
+$agOPTIONS[18]=IniRead($iniFile,"Delimiters",">4_Types2","-10")
 If StringIsInt($agOPTIONS[18])=0 Then $agOPTIONS[18]="-10"
-$agOPTIONS[19]=IniRead($iniFile,"Delimiters",">4_Types=3","-30")
+$agOPTIONS[19]=IniRead($iniFile,"Delimiters",">4_Types3","-30")
 If StringIsInt($agOPTIONS[19])=0 Then $agOPTIONS[19]="-30"
 $agOPTIONS[20]=IniRead($iniFile,"Delimiters",">4_Types>3","-40")
 If StringIsInt($agOPTIONS[20])=0 Then $agOPTIONS[20]="-40"
@@ -23985,6 +23986,7 @@ $agOPTIONS[22]=IniRead($iniFile,"IIN","4-Digit","5")
 If StringIsInt($agOPTIONS[22])=0 Then $agOPTIONS[22]="5"
 $agOPTIONS[23]=IniRead($iniFile,"IIN","NoMatch","-5")
 If StringIsInt($agOPTIONS[23])=0 Then $agOPTIONS[23]="-5"
+EndIf
 Else
 $aOPTIONS[1]=GUICtrlRead($Input1)
 $aOPTIONS[4]="false"
@@ -24026,9 +24028,9 @@ If _DateDiff('s',$sMSG_Time,_NowCalc()) > 5 Then cout("")
 $nMsg=GUIGetMsg()
 Switch $nMsg
 Case $GUI_EVENT_CLOSE,$aControl_Buttons[0]
+If $agOPTIONS[1]="1" Then SaveINI($iniFile,$aOPTIONS)
 _Metro_GUIDelete($Form1)
 _SQL_Close($oADODB)
-If $agOPTIONS[1]="1" Then SaveINI($iniFile,$aOPTIONS)
 Exit
 Case $aControl_Buttons[1]
 GUISetState(@SW_MAXIMIZE)
@@ -24048,9 +24050,9 @@ Case "1"
 _AboutGUI()
 _GUIDisable($Form1)
 Case "2"
+If $agOPTIONS[1]="1" Then SaveINI($iniFile,$aOPTIONS)
 _Metro_GUIDelete($Form1)
 _SQL_Close($oADODB)
-If $agOPTIONS[1]="1" Then SaveINI($iniFile,$aOPTIONS)
 Exit
 EndSwitch
 Case $Toggle1
@@ -24157,9 +24159,16 @@ EndIf
 EndSwitch
 WEnd
 Func SaveINI($iniFile,$aOPTIONS)
+If FileExists($iniFile)=0 Then
+MsgBox(0,"Attempting File Create",$iniFile)
+Local $hFile=FileOpen($iniFile,10)
+FileWrite($hFile,"## dataLoc persistent settings")
+FileClose($hFile)
+EndIf
 IniWrite($iniFile,"DB","RHOST",$aOPTIONS[1])
 IniWrite($iniFile,"DB","WINAUTH",$aOPTIONS[4])
 IniWrite($iniFile,"DB","DBUSER",$aOPTIONS[5])
+IniWrite($iniFile,"GUI","UseINI",$agOPTIONS[1])
 IniWrite($iniFile,"ScanControls","TimeOut",$agOPTIONS[2])
 IniWrite($iniFile,"ScanControls","EnforceTimeout",$agOPTIONS[3])
 IniWrite($iniFile,"ScoringMisc","Base",$agOPTIONS[5])
@@ -24169,14 +24178,14 @@ IniWrite($iniFile,"ScoringMisc","Phone",$agOPTIONS[8])
 IniWrite($iniFile,"ScoringWords","CardNames",$agOPTIONS[9])
 IniWrite($iniFile,"ScoringWords","Generic",$agOPTIONS[10])
 IniWrite($iniFile,"ScoringWords","Negative",$agOPTIONS[11])
-IniWrite($iniFile,"Delimiters","<=4_Types=0",$agOPTIONS[12])
-IniWrite($iniFile,"Delimiters","<=4_Types=1",$agOPTIONS[13])
-IniWrite($iniFile,"Delimiters","<=4_Types=2",$agOPTIONS[14])
-IniWrite($iniFile,"Delimiters","<=4_Types=3",$agOPTIONS[15])
-IniWrite($iniFile,"Delimiters","<=4_Types>3",$agOPTIONS[16])
-IniWrite($iniFile,"Delimiters",">4_Types=1",$agOPTIONS[17])
-IniWrite($iniFile,"Delimiters",">4_Types=2",$agOPTIONS[18])
-IniWrite($iniFile,"Delimiters",">4_Types=3",$agOPTIONS[19])
+IniWrite($iniFile,"Delimiters","<4_Types0",$agOPTIONS[12])
+IniWrite($iniFile,"Delimiters","<4_Types1",$agOPTIONS[13])
+IniWrite($iniFile,"Delimiters","<4_Types2",$agOPTIONS[14])
+IniWrite($iniFile,"Delimiters","<4_Types3",$agOPTIONS[15])
+IniWrite($iniFile,"Delimiters","<4_Types>3",$agOPTIONS[16])
+IniWrite($iniFile,"Delimiters",">4_Types1",$agOPTIONS[17])
+IniWrite($iniFile,"Delimiters",">4_Types2",$agOPTIONS[18])
+IniWrite($iniFile,"Delimiters",">4_Types3",$agOPTIONS[19])
 IniWrite($iniFile,"Delimiters",">4_Types>3",$agOPTIONS[20])
 IniWrite($iniFile,"IIN","6-Digit",$agOPTIONS[21])
 IniWrite($iniFile,"IIN","4-Digit",$agOPTIONS[22])
