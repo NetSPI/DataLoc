@@ -6,7 +6,7 @@
 #AutoIt3Wrapper_Compression=4
 #AutoIt3Wrapper_Compile_Both=y
 #AutoIt3Wrapper_Res_Description=DB Data locator
-#AutoIt3Wrapper_Res_Fileversion=0.1.0.57
+#AutoIt3Wrapper_Res_Fileversion=0.1.0.59
 #AutoIt3Wrapper_Res_Fileversion_AutoIncrement=y
 #AutoIt3Wrapper_Res_HiDpi=y
 #AutoIt3Wrapper_Run_Au3Stripper=y
@@ -104,37 +104,112 @@ GUISetState(@SW_SHOW)
 ;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 ;		Main loop
 ;-----------------------------------------------------------------------
-Global $agOPTIONS[10]
+Global $agOPTIONS[24]
 Local $aOPTIONS[12],$oADODB=-1,$aListView1Items[2],$aListView2Items[2],$ListView1Last="",$ListView2Last=""
+Local $iniFile=@AppDataDir&"\dataLoc\dataloc.ini"
 
-	If FileExists(@ScriptDir&"\dataloc.ini")=1 Then
-		;Load ini
-		$aOPTIONS[1]=IniRead(@ScriptDir&"\dataloc.ini","DB","RHOST","")        ;RHOST
-		$aOPTIONS[4]=IniRead(@ScriptDir&"\dataloc.ini","DB","WINAUTH","false") ;WINAUTH
+	If FileExists($iniFile)=1 Then
+		;#####  Load ini
+		$aOPTIONS[1]=IniRead($iniFile,"DB","RHOST","")                      ;RHOST
+		$aOPTIONS[4]=IniRead($iniFile,"DB","WINAUTH","false")               ;WINAUTH
 		If $aOPTIONS[4]="true" Then _Metro_ToggleCheck($Toggle1)
-		$aOPTIONS[5]=IniRead(@ScriptDir&"\dataloc.ini","DB","DBUSER","*")     ;DBUSER
-		$aOPTIONS[6]="*"         ;DBPASS
-		$aOPTIONS[7]="*"         ;DB
-		$aOPTIONS[8]="*"         ;TABLE
-		$aOPTIONS[9]="*"         ;COLUMN
-		$aOPTIONS[10]="cc"       ;DATATYPE
+		$aOPTIONS[5]=IniRead($iniFile,"DB","DBUSER","*")                    ;DBUSER
+		$aOPTIONS[6]="*"                                                    ;DBPASS
+		$aOPTIONS[7]="*"                                                    ;DB
+		$aOPTIONS[8]="*"                                                    ;TABLE
+		$aOPTIONS[9]="*"                                                    ;COLUMN
+		$aOPTIONS[10]="cc"                                                  ;DATATYPE
 
-		$agOPTIONS[1]="true"     ;USE INI
+		$agOPTIONS[1]="1"                                                   ;USE INI
+		$agOPTIONS[2]=IniRead($iniFile,"ScanControls","TimeOut","10")       ;Per-Column Timeout in min.
+		If StringIsInt($agOPTIONS[2])=0 Then $agOPTIONS[2]="10"
+		$agOPTIONS[3]=IniRead($iniFile,"ScanControls","EnforceTimeout","1") ;Enforce Per-Column Timeout 1=true
+		If StringIsInt($agOPTIONS[3])=0 Then $agOPTIONS[3]="1"
+		$agOPTIONS[4]=""                                                    ;Reserved
+		;##Scoring
+		;Misc
+		$agOPTIONS[5]=IniRead($iniFile,"ScoringMisc","Base","50")           ;Base Score Luhn Valid
+		If StringIsInt($agOPTIONS[5])=0 Then $agOPTIONS[5]="50"
+		$agOPTIONS[6]=IniRead($iniFile,"ScoringMisc","Letters","-40")       ;Letters as delimiters "[a-z]\D"
+		If StringIsInt($agOPTIONS[6])=0 Then $agOPTIONS[6]="-40"
+		$agOPTIONS[7]=IniRead($iniFile,"ScoringMisc","CVV","5")             ;Card Number followed by CVV $FullMatch&"\D[0-9]{3}\D"
+		If StringIsInt($agOPTIONS[7])=0 Then $agOPTIONS[7]="5"
+		$agOPTIONS[8]=IniRead($iniFile,"ScoringMisc","Phone","-50")         ;Potential Phone Number "[^0-9]*[0-9][^0-9]"&$FullMatch
+		If StringIsInt($agOPTIONS[8])=0 Then $agOPTIONS[8]="-50"
+		;Key Words
+		$agOPTIONS[9]=IniRead($iniFile,"ScoringWords","CardNames","10")     ;Card Name present in cell amex, visa, mastercard, discover
+		If StringIsInt($agOPTIONS[9])=0 Then $agOPTIONS[9]="10"
+		$agOPTIONS[10]=IniRead($iniFile,"ScoringWords","Generic","5")       ;Generic key words cc, billing, card, credit, cvv, payment
+		If StringIsInt($agOPTIONS[10])=0 Then $agOPTIONS[10]="5"
+		$agOPTIONS[11]=IniRead($iniFile,"ScoringWords","Negative","-25")    ;Negative key words aaa
+		If StringIsInt($agOPTIONS[11])=0 Then $agOPTIONS[11]="-25"
+		;Delimiters
+		$agOPTIONS[12]=IniRead($iniFile,"Delimiters","<=4_Types=0","15")    ;Count <=4 Types 0
+		If StringIsInt($agOPTIONS[12])=0 Then $agOPTIONS[12]="15"
+		$agOPTIONS[13]=IniRead($iniFile,"Delimiters","<=4_Types=1","10")    ;Count <=4 Types 1
+		If StringIsInt($agOPTIONS[13])=0 Then $agOPTIONS[13]="10"
+		$agOPTIONS[14]=IniRead($iniFile,"Delimiters","<=4_Types=2","5")     ;Count <=4 Types 2
+		If StringIsInt($agOPTIONS[14])=0 Then $agOPTIONS[14]="5"
+		$agOPTIONS[15]=IniRead($iniFile,"Delimiters","<=4_Types=3","-20")   ;Count <=4 Types 3
+		If StringIsInt($agOPTIONS[15])=0 Then $agOPTIONS[15]="-20"
+		$agOPTIONS[16]=IniRead($iniFile,"Delimiters","<=4_Types>3","-25")   ;Count <=4 Types >3
+		If StringIsInt($agOPTIONS[16])=0 Then $agOPTIONS[16]="-25"
+		$agOPTIONS[17]=IniRead($iniFile,"Delimiters",">4_Types=1","15")     ;Count >4 Types 1
+		If StringIsInt($agOPTIONS[17])=0 Then $agOPTIONS[17]="15"
+		$agOPTIONS[18]=IniRead($iniFile,"Delimiters",">4_Types=2","-10")    ;Count >4 Types 2
+		If StringIsInt($agOPTIONS[18])=0 Then $agOPTIONS[18]="-10"
+		$agOPTIONS[19]=IniRead($iniFile,"Delimiters",">4_Types=3","-30")    ;Count >4 Types 3
+		If StringIsInt($agOPTIONS[19])=0 Then $agOPTIONS[19]="-30"
+		$agOPTIONS[20]=IniRead($iniFile,"Delimiters",">4_Types>3","-40")    ;Count >4 Types >3
+		If StringIsInt($agOPTIONS[20])=0 Then $agOPTIONS[20]="-40"
+		;IIN Check
+		$agOPTIONS[21]=IniRead($iniFile,"IIN","6-Digit","10")               ;6 digit match
+		If StringIsInt($agOPTIONS[21])=0 Then $agOPTIONS[21]="10"
+		$agOPTIONS[22]=IniRead($iniFile,"IIN","4-Digit","5")                ;4 digit match
+		If StringIsInt($agOPTIONS[22])=0 Then $agOPTIONS[22]="5"
+		$agOPTIONS[23]=IniRead($iniFile,"IIN","NoMatch","-5")               ;No match
+		If StringIsInt($agOPTIONS[23])=0 Then $agOPTIONS[23]="-5"
 	Else
 		;Use hard coded defaults
 		$aOPTIONS[1]=GUICtrlRead($Input1) ;RHOST
-		$aOPTIONS[4]="false"     ;WINAUTH
-		$aOPTIONS[5]="*"         ;DBUSER
-		$aOPTIONS[6]="*"         ;DBPASS
-		$aOPTIONS[7]="*"         ;DB
-		$aOPTIONS[8]="*"         ;TABLE
-		$aOPTIONS[9]="*"         ;COLUMN
-		$aOPTIONS[10]="cc"       ;DATATYPE
+		$aOPTIONS[4]="false"              ;WINAUTH
+		$aOPTIONS[5]="*"                  ;DBUSER
+		$aOPTIONS[6]="*"                  ;DBPASS
+		$aOPTIONS[7]="*"                  ;DB
+		$aOPTIONS[8]="*"                  ;TABLE
+		$aOPTIONS[9]="*"                  ;COLUMN
+		$aOPTIONS[10]="cc"                ;DATATYPE
 
-		$agOPTIONS[1]="false"    ;USE INI
-		$agOPTIONS[2]=10         ;Per-Column Timeout in min.
-		$agOPTIONS[3]=1          ;Use Per-Column Timeout 1=true
+		$agOPTIONS[1]="0"                 ;USE INI
+		$agOPTIONS[2]="10"                ;Per-Column Timeout in min.
+		$agOPTIONS[3]="1"                 ;Enforce Per-Column Timeout 1=true
+		$agOPTIONS[4]=""                  ;Reserved
+		;##Scoring
+		;Misc
+		$agOPTIONS[5]="50"                ;Base Score Luhn Valid
+		$agOPTIONS[6]="-40"               ;Letters as delimiters "[a-z]\D"
+		$agOPTIONS[7]="5"                 ;Card Number followed by CVV $FullMatch&"\D[0-9]{3}\D"
+		$agOPTIONS[8]="-50"               ;Potential Phone Number "[^0-9]*[0-9][^0-9]"&$FullMatch
+		;Key Words
+		$agOPTIONS[9]="10"                ;Card Name present in cell amex, visa, mastercard, discover
+		$agOPTIONS[10]="5"                ;Generic key words cc, billing, card, credit, cvv, payment
+		$agOPTIONS[11]="-25"              ;Negative key words aaa
+		;Delimiters
+		$agOPTIONS[12]="15"               ;Count <=4 Types 0
+		$agOPTIONS[13]="10"               ;Count <=4 Types 1
+		$agOPTIONS[14]="5"                ;Count <=4 Types 2
+		$agOPTIONS[15]="-20"              ;Count <=4 Types 3
+		$agOPTIONS[16]="-25"              ;Count <=4 Types >3
+		$agOPTIONS[17]="15"               ;Count >4 Types 1
+		$agOPTIONS[18]="-10"              ;Count >4 Types 2
+		$agOPTIONS[19]="-30"              ;Count >4 Types 3
+		$agOPTIONS[20]="-40"              ;Count >4 Types >3
+		;IIN Check
+		$agOPTIONS[21]="10"               ;6 digit match
+		$agOPTIONS[22]="5"                ;4 digit match
+		$agOPTIONS[23]="-5"               ;No match
 	EndIf
+
 	$aListView1Items[0]=0
 	$aListView2Items[0]=0
 While 1
@@ -151,6 +226,7 @@ While 1
 			;CLOSE_BUTTON
 			_Metro_GUIDelete($Form1) ;Delete GUI/release resources
 			_SQL_Close($oADODB)
+			If $agOPTIONS[1]="1" Then SaveINI($iniFile,$aOPTIONS)
 			Exit
 		Case $aControl_Buttons[1]
 			;MAXIMIZE_BUTTON
@@ -177,6 +253,7 @@ While 1
 				Case "2" ;Exit
 					_Metro_GUIDelete($Form1)
 					_SQL_Close($oADODB)
+					If $agOPTIONS[1]="1" Then SaveINI($iniFile,$aOPTIONS)
 					Exit
 			EndSwitch
 		Case $Toggle1 ;Toggle authentication type
@@ -300,28 +377,266 @@ While 1
 	EndSwitch
 WEnd
 
+;#######################################################################
+;		SaveINI - Write settings to ini file
+;-----------------------------------------------------------------------
+Func SaveINI($iniFile,$aOPTIONS)
+	IniWrite($iniFile,"DB","RHOST",$aOPTIONS[1])                     ;RHOST
+	IniWrite($iniFile,"DB","WINAUTH",$aOPTIONS[4])                   ;WINAUTH
+	IniWrite($iniFile,"DB","DBUSER",$aOPTIONS[5])                    ;DBUSER
+
+	IniWrite($iniFile,"ScanControls","TimeOut",$agOPTIONS[2])        ;Per-Column Timeout in min.
+	IniWrite($iniFile,"ScanControls","EnforceTimeout",$agOPTIONS[3]) ;Enforce Per-Column Timeout 1=true
+	;##Scoring
+	;Misc
+	IniWrite($iniFile,"ScoringMisc","Base",$agOPTIONS[5])            ;Base Score Luhn Valid
+	IniWrite($iniFile,"ScoringMisc","Letters",$agOPTIONS[6])         ;Letters as delimiters "[a-z]\D"
+	IniWrite($iniFile,"ScoringMisc","CVV",$agOPTIONS[7])             ;Card Number followed by CVV $FullMatch&"\D[0-9]{3}\D"
+	IniWrite($iniFile,"ScoringMisc","Phone",$agOPTIONS[8])           ;Potential Phone Number "[^0-9]*[0-9][^0-9]"&$FullMatch
+	;Key Words
+	IniWrite($iniFile,"ScoringWords","CardNames",$agOPTIONS[9])      ;Card Name present in cell amex, visa, mastercard, discover
+	IniWrite($iniFile,"ScoringWords","Generic",$agOPTIONS[10])       ;Generic key words cc, billing, card, credit, cvv, payment
+	IniWrite($iniFile,"ScoringWords","Negative",$agOPTIONS[11])      ;Negative key words aaa
+	;Delimiters
+	IniWrite($iniFile,"Delimiters","<=4_Types=0",$agOPTIONS[12])     ;Count <=4 Types 0
+	IniWrite($iniFile,"Delimiters","<=4_Types=1",$agOPTIONS[13])     ;Count <=4 Types 1
+	IniWrite($iniFile,"Delimiters","<=4_Types=2",$agOPTIONS[14])     ;Count <=4 Types 2
+	IniWrite($iniFile,"Delimiters","<=4_Types=3",$agOPTIONS[15])     ;Count <=4 Types 3
+	IniWrite($iniFile,"Delimiters","<=4_Types>3",$agOPTIONS[16])     ;Count <=4 Types >3
+	IniWrite($iniFile,"Delimiters",">4_Types=1",$agOPTIONS[17])      ;Count >4 Types 1
+	IniWrite($iniFile,"Delimiters",">4_Types=2",$agOPTIONS[18])      ;Count >4 Types 2
+	IniWrite($iniFile,"Delimiters",">4_Types=3",$agOPTIONS[19])      ;Count >4 Types 3
+	IniWrite($iniFile,"Delimiters",">4_Types>3",$agOPTIONS[20])      ;Count >4 Types >3
+	;IIN Check
+	IniWrite($iniFile,"IIN","6-Digit",$agOPTIONS[21])                ;6 digit match
+	IniWrite($iniFile,"IIN","4-Digit",$agOPTIONS[22])                ;4 digit match
+	IniWrite($iniFile,"IIN","NoMatch",$agOPTIONS[23])                ;No match
+EndFunc
 
 ;#######################################################################
 ;		_SettingsGUI - settings GUI menu
 ;-----------------------------------------------------------------------
 Func _SettingsGUI()
-	Local $Form2=_Metro_CreateGUI("Settings", 600, 400, -1, -1, True)
+	Local $Form2=_Metro_CreateGUI("Settings",600,400,-1,-1,True)
 
 	;Add control buttons
-	Local $aControl_Buttons_Settings=_Metro_AddControlButtons(True, True, True, True)
+	Local $aControl_Buttons_Settings=_Metro_AddControlButtons(True,True,True,True)
+	Local $Button1 = _Metro_CreateButton("Close",250,340,100,40)
+	GUICtrlSetResizing($Button1,768+8)
 
-	Local $Button1 = _Metro_CreateButton("Close", 250, 340, 100, 40)
-	GUICtrlSetResizing($Button1, 768 + 8)
+	;#### General Group
+	Local $Group2=GUICtrlCreateGroup("General",10,25,580,100)
+
+	;##GUI controls
+	Local $Toggle2=_Metro_CreateOnOffToggle("INI: enabled","INI: disabled",15,40,140,26)
+	GUICtrlSetResizing($Toggle2,768+2+32)
+	If $agOPTIONS[1]="1" Then _Metro_ToggleCheck($Toggle2)
+	;##Scan Controls
+	Local $Toggle3=_Metro_CreateOnOffToggle("Timeout: enabled","Timeout: disabled",15,70,180,26)
+	GUICtrlSetResizing($Toggle3,768+2+32)
+	If $agOPTIONS[3]="1" Then _Metro_ToggleCheck($Toggle3)
+
+	;Timeout in min.
+	Local $Label5=GUICtrlCreateLabel("Timeout:",15,100)
+	GUICtrlSetResizing($Label5, 768+2+32)
+	Local $Input5=GUICtrlCreateInput($agOPTIONS[2],60,98,30,18,$ES_NUMBER)
+	GUICtrlSetResizing($Input5,768+2+32)
+	GUICtrlSetTip($Input5,"Per-Column Timeout in min.")
+
+	;#### Scoring Group
+	Local $Group3=GUICtrlCreateGroup("Scoring",10,125,580,200)
+
+	;##Misc
+	Local $Label13=GUICtrlCreateLabel("Misc",15,142)
+	;Base Score Luhn Valid
+	Local $Label6=GUICtrlCreateLabel("- Luhn Valid",50,162)
+	GUICtrlSetResizing($Label6, 768+2+32)
+	Local $Input6=GUICtrlCreateInput($agOPTIONS[5],15,160,30,18,$ES_RIGHT)
+	GUICtrlSetResizing($Input6,768+2+32)
+	GUICtrlSetTip($Input6,"Base Score")
+
+	;Letters as delimiters
+	Local $Label7=GUICtrlCreateLabel("- Alpha Delimiters",50,182)
+	GUICtrlSetResizing($Label7, 768+2+32)
+	Local $Input7=GUICtrlCreateInput($agOPTIONS[6],15,180,30,18,$ES_RIGHT)
+	GUICtrlSetResizing($Input7,768+2+32)
+	GUICtrlSetTip($Input7,"Letters used as delimiters")
+
+	;Card Number followed by CVV
+	Local $Label8=GUICtrlCreateLabel("- Card + CVV",50,202)
+	GUICtrlSetResizing($Label8, 768+2+32)
+	Local $Input8=GUICtrlCreateInput($agOPTIONS[7],15,200,30,18,$ES_RIGHT)
+	GUICtrlSetResizing($Input8,768+2+32)
+	GUICtrlSetTip($Input8,"$FullMatch\D[0-9]{3}\D")
+
+	;Potential Phone Number
+	Local $Label9=GUICtrlCreateLabel("- Phone Number",50,222)
+	GUICtrlSetResizing($Label9, 768+2+32)
+	Local $Input9=GUICtrlCreateInput($agOPTIONS[8],15,220,30,18,$ES_RIGHT)
+	GUICtrlSetResizing($Input9,768+2+32)
+	GUICtrlSetTip($Input9,"[^0-9]*[0-9][^0-9]FullMatch")
+
+	;##Key Words
+	Local $Label13=GUICtrlCreateLabel("Key Words",15,242)
+	;Card Name
+	Local $Label10=GUICtrlCreateLabel("- Card Names",50,262)
+	GUICtrlSetResizing($Label10, 768+2+32)
+	Local $Input10=GUICtrlCreateInput($agOPTIONS[9],15,260,30,18,$ES_RIGHT)
+	GUICtrlSetResizing($Input10,768+2+32)
+	GUICtrlSetTip($Input10,"amex, visa, mastercard, discover")
+
+	;Generic key words
+	Local $Label11=GUICtrlCreateLabel("- Generic key words",50,282)
+	GUICtrlSetResizing($Label11, 768+2+32)
+	Local $Input11=GUICtrlCreateInput($agOPTIONS[10],15,280,30,18,$ES_RIGHT)
+	GUICtrlSetResizing($Input11,768+2+32)
+	GUICtrlSetTip($Input11,"cc, billing, card, credit, cvv, payment")
+
+	;Negative key words
+	Local $Label12=GUICtrlCreateLabel("- Negative key words",50,302)
+	GUICtrlSetResizing($Label12, 768+2+32)
+	Local $Input12=GUICtrlCreateInput($agOPTIONS[11],15,300,30,18,$ES_RIGHT)
+	GUICtrlSetResizing($Input12,768+2+32)
+	GUICtrlSetTip($Input12,"aaa")
+	;#Row2
+	;##Delimiters
+	Local $Label13=GUICtrlCreateLabel("Delimiters  -  number of delimiters, types of delimiters",170,142)
+
+	;Count <=4 Types 0
+	Local $Label14=GUICtrlCreateLabel("- Count <=4 Types 0",205,162)
+	GUICtrlSetResizing($Label14, 768+2+32)
+	Local $Input14=GUICtrlCreateInput($agOPTIONS[12],170,160,30,18,$ES_RIGHT)
+	GUICtrlSetResizing($Input14,768+2+32)
+
+	;Count <=4 Types 1
+	Local $Label15=GUICtrlCreateLabel("- Count <=4 Types 1",205,182)
+	GUICtrlSetResizing($Label15, 768+2+32)
+	Local $Input15=GUICtrlCreateInput($agOPTIONS[13],170,180,30,18,$ES_RIGHT)
+	GUICtrlSetResizing($Input15,768+2+32)
+
+	;Count <=4 Types 2
+	Local $Label16=GUICtrlCreateLabel("- Count <=4 Types 2",205,202)
+	GUICtrlSetResizing($Label16, 768+2+32)
+	Local $Input16=GUICtrlCreateInput($agOPTIONS[14],170,200,30,18,$ES_RIGHT)
+	GUICtrlSetResizing($Input16,768+2+32)
+
+	;Count <=4 Types 3
+	Local $Label17=GUICtrlCreateLabel("- Count <=4 Types 3",205,222)
+	GUICtrlSetResizing($Label17, 768+2+32)
+	Local $Input17=GUICtrlCreateInput($agOPTIONS[15],170,220,30,18,$ES_RIGHT)
+	GUICtrlSetResizing($Input17,768+2+32)
+
+	;CCount <=4 Types >3
+	Local $Label18=GUICtrlCreateLabel("- Count <=4 Types >3",205,242)
+	GUICtrlSetResizing($Label18, 768+2+32)
+	Local $Input18=GUICtrlCreateInput($agOPTIONS[16],170,240,30,18,$ES_RIGHT)
+	GUICtrlSetResizing($Input18,768+2+32)
+	;#Row3
+	;Count >4 Types 1
+	Local $Label19=GUICtrlCreateLabel("- Count >4 Types 1",365,162)
+	GUICtrlSetResizing($Label19, 768+2+32)
+	Local $Input19=GUICtrlCreateInput($agOPTIONS[17],330,160,30,18,$ES_RIGHT)
+	GUICtrlSetResizing($Input19,768+2+32)
+
+	;Count >4 Types 2
+	Local $Label20=GUICtrlCreateLabel("- Count >4 Types 2",365,182)
+	GUICtrlSetResizing($Label20, 768+2+32)
+	Local $Input20=GUICtrlCreateInput($agOPTIONS[18],330,180,30,18,$ES_RIGHT)
+	GUICtrlSetResizing($Input20,768+2+32)
+
+	;Count >4 Types 3
+	Local $Label21=GUICtrlCreateLabel("- Count >4 Types 3",365,202)
+	GUICtrlSetResizing($Label21, 768+2+32)
+	Local $Input21=GUICtrlCreateInput($agOPTIONS[19],330,200,30,18,$ES_RIGHT)
+	GUICtrlSetResizing($Input21,768+2+32)
+
+	;Count >4 Types >3
+	Local $Label22=GUICtrlCreateLabel("- Count >4 Types >3",365,222)
+	GUICtrlSetResizing($Label22, 768+2+32)
+	Local $Input22=GUICtrlCreateInput($agOPTIONS[20],330,220,30,18,$ES_RIGHT)
+	GUICtrlSetResizing($Input22,768+2+32)
+	;#Row4
+	;##IIN Check
+	Local $Label23=GUICtrlCreateLabel("IIN Check",490,142)
+
+	;6 digit match
+	Local $Label24=GUICtrlCreateLabel("- 6 digits",525,162)
+	GUICtrlSetResizing($Label24, 768+2+32)
+	Local $Input24=GUICtrlCreateInput($agOPTIONS[21],490,160,30,18,$ES_RIGHT)
+	GUICtrlSetResizing($Input24,768+2+32)
+	GUICtrlSetTip($Input24,"6 digit match")
+
+	;4 digit match
+	Local $Label25=GUICtrlCreateLabel("- 4 digits",525,182)
+	GUICtrlSetResizing($Label25, 768+2+32)
+	Local $Input25=GUICtrlCreateInput($agOPTIONS[22],490,180,30,18,$ES_RIGHT)
+	GUICtrlSetResizing($Input25,768+2+32)
+	GUICtrlSetTip($Input25,"4 digit match")
+
+	;no match
+	Local $Label26=GUICtrlCreateLabel("- No Match",525,202)
+	GUICtrlSetResizing($Label26, 768+2+32)
+	Local $Input26=GUICtrlCreateInput($agOPTIONS[23],490,200,30,18,$ES_RIGHT)
+	GUICtrlSetResizing($Input26,768+2+32)
+	GUICtrlSetTip($Input26,"No IIN Match")
+
 	GUISetState(@SW_SHOW)
 
 	While 1
 		_Metro_HoverCheck_Loop($Form2) ;Add hover check in loop
 		$nMsg = GUIGetMsg()
 		Switch $nMsg
-			Case $GUI_EVENT_CLOSE, $aControl_Buttons_Settings[0], $Button1
+			Case $GUI_EVENT_CLOSE,$aControl_Buttons_Settings[0],$Button1
 				;CLOSE_BUTTON
+				;Read GUI and set vars
+				If _Metro_ToggleIsChecked($Toggle2) Then ;Use INI
+					$agOPTIONS[1]="1"
+				Else
+					$agOPTIONS[1]="0"
+				EndIf
+				If _Metro_ToggleIsChecked($Toggle3) Then ;Use Timeout
+					$agOPTIONS[3]="1"
+				Else
+					$agOPTIONS[3]="0"
+				EndIf
+				$agOPTIONS[2]=GUICtrlRead($Input5) ;Timeout
+				If StringIsInt(GUICtrlRead($Input6))=1 Then $agOPTIONS[5]=GUICtrlRead($Input6)   ;Base Score
+				If StringIsInt(GUICtrlRead($Input7))=1 Then $agOPTIONS[6]=GUICtrlRead($Input7)   ;Letters as delimiters
+				If StringIsInt(GUICtrlRead($Input8))=1 Then $agOPTIONS[7]=GUICtrlRead($Input8)   ;Card Number followed by CVV
+				If StringIsInt(GUICtrlRead($Input9))=1 Then $agOPTIONS[8]=GUICtrlRead($Input9)   ;Potential Phone Number
+				If StringIsInt(GUICtrlRead($Input10))=1 Then $agOPTIONS[9]=GUICtrlRead($Input10) ;Card Name present in cell amex, visa, mastercard, discover
+				If StringIsInt(GUICtrlRead($Input11))=1 Then $agOPTIONS[10]=GUICtrlRead($Input11);Generic key words cc, billing, card, credit, cvv, payment
+				If StringIsInt(GUICtrlRead($Input12))=1 Then $agOPTIONS[11]=GUICtrlRead($Input12);Negative key words aaa
+				If StringIsInt(GUICtrlRead($Input14))=1 Then $agOPTIONS[12]=GUICtrlRead($Input14);Count <=4 Types 0
+				If StringIsInt(GUICtrlRead($Input15))=1 Then $agOPTIONS[13]=GUICtrlRead($Input15);Count <=4 Types 1
+				If StringIsInt(GUICtrlRead($Input16))=1 Then $agOPTIONS[14]=GUICtrlRead($Input16);Count <=4 Types 2
+				If StringIsInt(GUICtrlRead($Input17))=1 Then $agOPTIONS[15]=GUICtrlRead($Input17);Count <=4 Types 3
+				If StringIsInt(GUICtrlRead($Input18))=1 Then $agOPTIONS[16]=GUICtrlRead($Input18);Count <=4 Types >3
+				If StringIsInt(GUICtrlRead($Input19))=1 Then $agOPTIONS[17]=GUICtrlRead($Input19);Count >4 Types 1
+				If StringIsInt(GUICtrlRead($Input20))=1 Then $agOPTIONS[18]=GUICtrlRead($Input20);Count >4 Types 2
+				If StringIsInt(GUICtrlRead($Input21))=1 Then $agOPTIONS[19]=GUICtrlRead($Input21);Count >4 Types 3
+				If StringIsInt(GUICtrlRead($Input22))=1 Then $agOPTIONS[20]=GUICtrlRead($Input22);Count >4 Types >3
+				If StringIsInt(GUICtrlRead($Input24))=1 Then $agOPTIONS[21]=GUICtrlRead($Input24);6 digit match
+				If StringIsInt(GUICtrlRead($Input25))=1 Then $agOPTIONS[22]=GUICtrlRead($Input25);4 digit match
+				If StringIsInt(GUICtrlRead($Input26))=1 Then $agOPTIONS[23]=GUICtrlRead($Input26);no match
 				_Metro_GUIDelete($Form2) ;Delete GUI/release resources, make sure you use this when working with multiple GUIs!
 				Return 0
+			Case $Toggle2 ;Toggle INI
+				If _Metro_ToggleIsChecked($Toggle2) Then
+					$agOPTIONS[1]="0"
+					_Metro_ToggleUnCheck($Toggle2)
+				Else
+					$agOPTIONS[1]="1"
+					_Metro_ToggleCheck($Toggle2)
+				EndIf
+			Case $Toggle3 ;Toggle Timeout
+				If _Metro_ToggleIsChecked($Toggle3) Then
+					$agOPTIONS[3]="0"
+					_Metro_ToggleUnCheck($Toggle3)
+				Else
+					$agOPTIONS[3]="1"
+					_Metro_ToggleCheck($Toggle3)
+				EndIf
 			Case $aControl_Buttons_Settings[1]
 				;MAXIMIZE_BUTTON
 				GUISetState(@SW_MAXIMIZE)
@@ -342,19 +657,16 @@ EndFunc
 ;		_AboutGUI - about GUI
 ;-----------------------------------------------------------------------
 Func _AboutGUI()
-	Local $Form3=_Metro_CreateGUI("About", 600, 400, -1, -1, True)
+	Local $Form3=_Metro_CreateGUI("About",600,400,-1,-1,True)
 
 	;Add control buttons
-	Local $aControl_Buttons_About=_Metro_AddControlButtons(True, True, True, True)
+	Local $aControl_Buttons_About=_Metro_AddControlButtons(True,True,True,True)
+	Local $Button1 = _Metro_CreateButton("Close",250,340,100,40)
+	GUICtrlSetResizing($Button1,768+8)
 
-	Local $Button1 = _Metro_CreateButton("Close", 250, 340, 100, 40)
-	GUICtrlSetResizing($Button1, 768 + 8)
-	GUISetState(@SW_SHOW)
-
-	Local $hRichEdit=_GUICtrlRichEdit_Create($Form3,"",20,30,560,290,BitOR($ES_MULTILINE,$WS_VSCROLL,$ES_AUTOVSCROLL))
-
+	Local $hRichEdit=_GUICtrlRichEdit_Create($Form3,"",20,30,560,290,BitOR($ES_MULTILINE,$WS_VSCROLL,$ES_AUTOVSCROLL,$ES_READONLY))
 	Local $AboutTxt
-	$AboutTxt=$AboutTxt&"                                                              ========= dataLoc  1.0 ========="&@CRLF
+	$AboutTxt=$AboutTxt&"                                                              ========= dataLoc  1.0.1 ========="&@CRLF
 	$AboutTxt=$AboutTxt&"                                                                      Copyright (c) 2017, NetSPI"&@CRLF
 	$AboutTxt=$AboutTxt&"                                                                             All rights reserved"&@CRLF
 	$AboutTxt=$AboutTxt&""&@CRLF
@@ -391,7 +703,7 @@ Func _AboutGUI()
 	$AboutTxt=$AboutTxt&"https://www.autoitscript.com/forum/topic/161184-metrogui-udf-v4-windows-10-style-buttons-toggles-radios-menu-etc/"&@CRLF
 	_GUICtrlRichEdit_AppendText($hRichEdit,$AboutTxt)
 	_GUICtrlRichEdit_SetScrollPos($hRichEdit,0,0)
-
+	GUISetState(@SW_SHOW)
 
 	While 1
 		_Metro_HoverCheck_Loop($Form3) ;Add hover check in loop
@@ -786,7 +1098,7 @@ Func PostProcessing($aOPTIONS,$aPreProc)
 					If _LuhnCheck($NumericMatch)="True" Then
 						Local $aAnalysisTarget[3]
 						$aAnalysisTarget[0]=$NumericMatch      ;Match
-						$aAnalysisTarget[1]=50                 ;Confidence
+						$aAnalysisTarget[1]=$agOPTIONS[5]      ;Confidence rating.  Base Score
 						$aAnalysisTarget[2]=$aPreProc[$a][1]   ;FullCellContents
 
 					;Score Finding
@@ -837,9 +1149,9 @@ Func ConfidenceMiscTests($Score,$FullMatch,$CellData)
 	$FullMatch=StringReplace($FullMatch,")","\)")
 	$FullMatch=StringReplace($FullMatch,"}","\}")
 
-	If StringRegExp(StringLower($Delimiters),"[a-z]\D",0)=1 Then $Score+=-40 ;Reduce score if letters exist as delimiters
-	If StringRegExp($CellData,"[0-9][^0-9]"&$FullMatch,0)=1 Then $Score+=-50 ;
-	If StringRegExp($CellData,$FullMatch&"\D[0-9]{3}\D",0)=1 Then $Score+=5  ;
+	If StringRegExp(StringLower($Delimiters),"[a-z]\D",0)=1 Then $Score+=$agOPTIONS[6] ;Reduce score if letters exist as delimiters
+	If StringRegExp($CellData,"[^0-9]*[0-9][^0-9]"&$FullMatch,0)=1 Then $Score+=$agOPTIONS[8] ;Potential Phone Number
+	If StringRegExp($CellData,$FullMatch&"\D[0-9]{3}\D",0)=1 Then $Score+=$agOPTIONS[7] ;Card Number followed by CVV
 	Return $Score
 EndFunc
 
@@ -849,27 +1161,30 @@ EndFunc
 Func ConfidenceKeyWords($NumericMatch,$Score,$CellData)
 
 	;Card specific checks
-	Switch StringLeft($NumericMatch,1)
-		Case 3 ;American Express
-			If StringInStr($CellData,"amex") > 0 Then $Score+=10
-			If StringInStr($CellData,"american") > 0 Then $Score+=5
-			If StringInStr($CellData,"express") > 0 Then $Score+=5
-		Case 4 ;Visa
-			If StringInStr($CellData,"visa") > 0 Then $Score+=10
-		Case 5 ;MasterCard
-			If StringInStr($CellData,"mastercard") > 0 Then $Score+=10
-		Case 6 ;Discover
-			If StringInStr($CellData,"discover") > 0 Then $Score+=10
-	EndSwitch
+	If $agOPTIONS[9]<>0 Then
+		Switch StringLeft($NumericMatch,1)
+			Case 3 ;American Express
+				If StringInStr($CellData,"amex") > 0 Then $Score+=$agOPTIONS[9]
+				If StringInStr($CellData,"american") > 0 Then $Score+=$agOPTIONS[9]-5
+				If StringInStr($CellData,"express") > 0 Then $Score+=$agOPTIONS[9]-5
+			Case 4 ;Visa
+				If StringInStr($CellData,"visa") > 0 Then $Score+=$agOPTIONS[9]
+			Case 5 ;MasterCard
+				If StringInStr($CellData,"mastercard") > 0 Then $Score+=$agOPTIONS[9]
+				If StringInStr($CellData,"master card") > 0 Then $Score+=$agOPTIONS[9]
+			Case 7 ;Discover
+				If StringInStr($CellData,"discover") > 0 Then $Score+=$agOPTIONS[9]
+		EndSwitch
+	EndIf
 
 	;Generic checks
-	If StringInStr($CellData," cc") > 0 Then $Score+=5     ;
-	If StringInStr($CellData,"aaa") > 0 Then $Score+=-25   ;Triple A membership number
-	If StringInStr($CellData,"billing") > 0 Then $Score+=5 ;
-	If StringInStr($CellData,"card") > 0 Then $Score+=5    ;
-	If StringInStr($CellData,"credit") > 0 Then $Score+=5  ;
-	If StringInStr($CellData,"cvv") > 0 Then $Score+=10    ;
-	If StringInStr($CellData,"payment") > 0 Then $Score+=5 ;
+	If StringInStr($CellData," cc") > 0 Then $Score+=$agOPTIONS[10]     ;
+	If StringInStr($CellData,"aaa") > 0 Then $Score+=$agOPTIONS[11]     ;Triple A membership number are 16 digits and luhn valid
+	If StringInStr($CellData,"billing") > 0 Then $Score+=$agOPTIONS[10] ;
+	If StringInStr($CellData,"card") > 0 Then $Score+=$agOPTIONS[10]    ;
+	If StringInStr($CellData,"credit") > 0 Then $Score+=$agOPTIONS[10]  ;
+	If StringInStr($CellData,"cvv") > 0 Then $Score+=$agOPTIONS[10]     ;
+	If StringInStr($CellData,"payment") > 0 Then $Score+=$agOPTIONS[10] ;
 
 	Return $Score
 EndFunc
@@ -889,26 +1204,26 @@ Func ConfidenceDelimiters($Score,$Match)
 	If StringLen($Delimiters) <= 4 Then
 		Switch $DelimTypeCount
 			Case 0
-				$Score+=15
+				$Score+=$agOPTIONS[12]
 			Case 1
-				$Score+=10
+				$Score+=$agOPTIONS[13]
 			Case 2
-				$Score+=5
+				$Score+=$agOPTIONS[14]
 			Case 3
-				$Score+=-20
+				$Score+=$agOPTIONS[15]
 			Case Else
-				$Score+=-25
+				$Score+=$agOPTIONS[16]
 		EndSwitch
 	Else
 		Switch $DelimTypeCount
 			Case 1
-				$Score+=15
+				$Score+=$agOPTIONS[17]
 			Case 2
-				$Score+=-10
+				$Score+=$agOPTIONS[18]
 			Case 3
-				$Score+=-30
+				$Score+=$agOPTIONS[19]
 			Case Else
-				$Score+=-40
+				$Score+=$agOPTIONS[20]
 		EndSwitch
 	EndIf
 
@@ -927,7 +1242,7 @@ Func ConfidenceIINCheck($ExactMatch,$Score)
 	$MatchIIN=StringLeft($ExactMatch,6)
 	For $a=0 To UBound($aIINList)-1
 		If $MatchIIN=$aIINList[$a] Then
-			$Score+=10
+			$Score+=$agOPTIONS[21]
 			$bMF=1
 			ExitLoop
 		EndIf
@@ -939,7 +1254,7 @@ Func ConfidenceIINCheck($ExactMatch,$Score)
 		$MatchIIN=StringLeft($ExactMatch,4)
 		For $a=0 To UBound($aIINList)-1
 			If $MatchIIN=$aIINList[$a] Then
-				$Score+=5
+				$Score+=$agOPTIONS[22]
 				$bMF=1
 				ExitLoop
 			EndIf
@@ -947,7 +1262,7 @@ Func ConfidenceIINCheck($ExactMatch,$Score)
 	EndIf
 
 	;No match
-	If $bMF=0 Then $Score+=-5
+	If $bMF=0 Then $Score+=$agOPTIONS[23]
 	Return $Score
 EndFunc
 
