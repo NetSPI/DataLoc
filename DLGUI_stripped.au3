@@ -6,7 +6,7 @@
 #AutoIt3Wrapper_Compression=4
 #AutoIt3Wrapper_Compile_Both=y
 #AutoIt3Wrapper_Res_Description=DB Data locator
-#AutoIt3Wrapper_Res_Fileversion=0.1.0.60
+#AutoIt3Wrapper_Res_Fileversion=0.1.0.61
 #AutoIt3Wrapper_Res_Fileversion_AutoIncrement=y
 #AutoIt3Wrapper_Res_HiDpi=y
 #AutoIt3Wrapper_Run_Au3Stripper=y
@@ -24160,7 +24160,6 @@ EndSwitch
 WEnd
 Func SaveINI($iniFile,$aOPTIONS)
 If FileExists($iniFile)=0 Then
-MsgBox(0,"Attempting File Create",$iniFile)
 Local $hFile=FileOpen($iniFile,10)
 FileWrite($hFile,"## dataLoc persistent settings")
 FileClose($hFile)
@@ -27977,7 +27976,6 @@ $ADODBHandle.CommandTimeout=$iTimeOut
 Return SetError($SQL_OK,0,$ADODBHandle.CommandTimeout)
 EndFunc
 Func _SQL_Execute($oADODB=-1,$vQuery="")
-FileWriteLine("sql.log",$vQuery)
 $SQLErr=""
 If $oADODB=-1 Then $oADODB=$SQL_LastConnection
 Local $hQuery=$oADODB.Execute($vQuery)
